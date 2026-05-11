@@ -1,0 +1,325 @@
+"use client";
+
+import { useState } from "react";
+import type {
+  AnalysisResult,
+  WisdomCitation,
+  PricingSuggestion,
+  PostType,
+  Recommendation,
+} from "@/lib/prompt";
+import type { ImageTags } from "@/lib/captioner";
+import { PLATFORMS } from "@/lib/platforms";
+
+export type FullResult = AnalysisResult & {
+  raw_description?: string;
+  nsfw_verdict?: "nsfw" | "normal";
+  tags?: ImageTags;
+};
+
+const platform = (id: string) => PLATFORMS.find((p) => p.id === id);
+const platformName = (id: string) => platform(id)?.name ?? id;
+
+function CaptionBlock({
+  caption,
+  hashtags,
+  onRewrite,
+  rewriting,
+  composeUrl,
+}: {
+  caption: string;
+  hashtags: string[];
+  onRewrite?: () => void;
+  rewriting?: boolean;
+  composeUrl?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const fullText = hashtags?.length ? `${caption}\n\n${hashtags.join(" ")}` : caption;
+  const copy = async () => {
+    await navigator.clipboard.writeText(fullText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  const copyAndOpen = async () => {
+    await navigator.clipboard.writeText(fullText);
+    setCopied(true);
+    if (composeUrl) window.open(composeUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => setCopied(false), 1400);
+  };
+
+  return (
+    <>
+      <p className="caption-block">{caption}</p>
+      {hashtags?.length > 0 && (
+        <ul className="hashtags">
+          {hashtags.map((h, i) => (
+            <li key={i}>{h}</li>
+          ))}
+        </ul>
+      )}
+      <div className="caption-actions">
+        <button className="btn-ghost" onClick={copy}>
+          {copied ? "Copied ✓" : "Copy caption"}
+        </button>
+        {onRewrite && (
+          <button className="btn-ghost" onClick={onRewrite} disabled={rewriting}>
+            {rewriting ? <><span className="spinner" /> Rewriting…</> : "Rewrite with AI"}
+          </button>
+        )}
+        {composeUrl && (
+          <button className="btn-compose" onClick={copyAndOpen}>
+            Open {platformName(composeUrl.includes("instagram") ? "instagram" : "")} →
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function PostToButton({ platformId }: { platformId: string }) {
+  const p = platform(platformId);
+  if (!p) return null;
+  return (
+    <a
+      className="btn-compose"
+      href={p.composeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Open {p.name} →
+    </a>
+  );
+}
+
+function TagRow({ label, value, wide }: { label: string; value: string | undefined | null; wide?: boolean }) {
+  const display = String(value ?? "unknown").replace(/_/g, " ");
+  return (
+    <div className={`tag-row${wide ? " tag-row-wide" : ""}`}>
+      <span className="tag-row-label">{label}</span>
+      <span className="tag-row-value">{display}</span>
+    </div>
+  );
+}
+
+function PostTypeBadge({ postType }: { postType: PostType }) {
+  if (!postType?.label) return null;
+  return (
+    <div className="post-type">
+      <div className="post-type-header">
+        <span className="post-type-label">{postType.label.replace(/_/g, " ")}</span>
+      </div>
+      {postType.description && <p className="post-type-desc">{postType.description}</p>}
+    </div>
+  );
+}
+
+function PriceTag({ pricing }: { pricing: PricingSuggestion }) {
+  const range =
+    pricing.low_usd === pricing.high_usd
+      ? pricing.low_usd === 0
+        ? "Free for subscribers"
+        : `$${pricing.low_usd}`
+      : `$${pricing.low_usd}–$${pricing.high_usd}`;
+  return (
+    <div className="pricing">
+      <div className="pricing-header">
+        <span className="pricing-label">Suggested price</span>
+        <span className="pricing-range">{range}</span>
+      </div>
+      <div className="pricing-model">{pricing.model}</div>
+      <p className="pricing-rationale">{pricing.rationale}</p>
+    </div>
+  );
+}
+
+function StrategyBlock({ text }: { text: string }) {
+  return (
+    <div className="strategy">
+      <span className="strategy-label">Strategy fit</span>
+      <p className="strategy-text">{text}</p>
+    </div>
+  );
+}
+
+function WisdomQuote({ wisdom }: { wisdom: WisdomCitation }) {
+  if (!wisdom || !wisdom.principle) return null;
+  return (
+    <div className="wisdom">
+      <p className="wisdom-principle">&ldquo;{wisdom.principle}&rdquo;</p>
+      {wisdom.attribution && <p className="wisdom-attribution">— {wisdom.attribution}</p>}
+      {wisdom.context && <p className="wisdom-context">{wisdom.context}</p>}
+    </div>
+  );
+}
+
+function RecBody({
+  rec,
+  description,
+  tags,
+  onCaptionUpdate,
+}: {
+  rec: Recommendation;
+  description: string;
+  tags: ImageTags | undefined;
+  onCaptionUpdate: (newCaption: string) => void;
+}) {
+  const [rewriting, setRewriting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const rewrite = async () => {
+    if (!tags) return;
+    setRewriting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/rewrite-caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: rec.platform,
+          description,
+          tags,
+          current_caption: rec.caption,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Rewrite failed");
+      onCaptionUpdate(data.caption);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRewriting(false);
+    }
+  };
+
+  return (
+    <>
+      <p className="reason">{rec.reason}</p>
+
+      {rec.post_type && <PostTypeBadge postType={rec.post_type} />}
+      {rec.pricing_suggestion && <PriceTag pricing={rec.pricing_suggestion} />}
+      {rec.strategy_alignment && <StrategyBlock text={rec.strategy_alignment} />}
+      {rec.wisdom && <WisdomQuote wisdom={rec.wisdom} />}
+
+      <p className="section-label">Caption</p>
+      <CaptionBlock
+        caption={rec.caption}
+        hashtags={rec.hashtags ?? []}
+        onRewrite={rewrite}
+        rewriting={rewriting}
+      />
+      <div className="rec-footer">
+        <PostToButton platformId={rec.platform} />
+      </div>
+      {error && <div className="error-banner" style={{ marginTop: 12 }}>{error}</div>}
+    </>
+  );
+}
+
+export function ResultCard({ result }: { result: FullResult }) {
+  const [showFull, setShowFull] = useState(false);
+  const [primary, setPrimary] = useState(result.primary_recommendation);
+  const [alternatives, setAlternatives] = useState(result.alternatives);
+
+  const updatePrimaryCaption = (newCaption: string) => {
+    setPrimary((p) => ({ ...p, caption: newCaption }));
+  };
+  const updateAltCaption = (i: number) => (newCaption: string) => {
+    setAlternatives((alts) =>
+      alts.map((a, idx) => (idx === i ? { ...a, caption: newCaption } : a))
+    );
+  };
+
+  return (
+    <div className="result">
+      <div className="card card-primary">
+        <div className="card-header">
+          <h2 className="platform-name">
+            <span className="post-to">Post to</span>
+            {platformName(primary.platform)}
+          </h2>
+          <span className={`rating-pill ${result.content_rating}`}>{result.content_rating}</span>
+        </div>
+
+        <RecBody
+          rec={primary}
+          description={result.raw_description ?? ""}
+          tags={result.tags}
+          onCaptionUpdate={updatePrimaryCaption}
+        />
+
+        <div className="disclosure">
+          <button className="btn-ghost" onClick={() => setShowFull((v) => !v)}>
+            {showFull ? "Hide what the AI detected" : "What the AI detected in your image"}
+          </button>
+          {showFull && (
+            <>
+              {result.tags && (
+                <div className="tag-grid">
+                  <TagRow label="Attire" value={result.tags.attire} />
+                  <TagRow label="Sensuality" value={result.tags.sensuality} />
+                  <TagRow label="Pose intent" value={result.tags.pose_intent} />
+                  <TagRow label="People in frame" value={String(result.tags.people_in_frame)} />
+                  <TagRow label="Scene" value={result.tags.scene} />
+                  <TagRow label="Production" value={result.tags.production_quality} />
+                  <TagRow
+                    label="Body parts visible"
+                    value={
+                      Array.isArray(result.tags.body_parts_visible) && result.tags.body_parts_visible.length
+                        ? result.tags.body_parts_visible.join(", ")
+                        : "none reported"
+                    }
+                    wide
+                  />
+                </div>
+              )}
+              <p style={{ marginTop: 14, marginBottom: 6, fontSize: 13, color: "var(--muted)" }}>
+                Summary: {result.image_summary}
+              </p>
+              {result.raw_description && (
+                <div className="disclosure-panel">{result.raw_description}</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {alternatives?.length > 0 && (
+        <div className="card">
+          <p className="section-label" style={{ marginTop: 0 }}>
+            Also works on
+          </p>
+          {alternatives.map((alt, i) => (
+            <div key={i} className="alt-block">
+              <h3 className="alt-platform">{platformName(alt.platform)}</h3>
+              <RecBody
+                rec={alt}
+                description={result.raw_description ?? ""}
+                tags={result.tags}
+                onCaptionUpdate={updateAltCaption(i)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result.do_not_post?.length > 0 && (
+        <div className="card">
+          <p className="section-label" style={{ marginTop: 0 }}>
+            Don&rsquo;t post on
+          </p>
+          <div className="do-not-list">
+            {result.do_not_post.map((entry, i) => {
+              const item = typeof entry === "string" ? { platform: entry, reason: "" } : entry;
+              return (
+                <div key={i} className="do-not-item">
+                  <div className="do-not-platform">{platformName(item.platform)}</div>
+                  <p className="do-not-reason">{item.reason || "Content doesn't fit this platform."}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
