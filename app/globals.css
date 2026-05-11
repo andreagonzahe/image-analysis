@@ -521,6 +521,81 @@ h1.title {
   gap: 8px;
 }
 
+/* Funnel strategy block — top of every result */
+.funnel {
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, var(--accent-soft), transparent 60%),
+    var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.funnel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.funnel-tier-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  letter-spacing: -0.005em;
+}
+
+.funnel-tier-pill[data-tier="1"] { background: #15803d; color: white; }
+.funnel-tier-pill[data-tier="2"] { background: #b45309; color: white; }
+.funnel-tier-pill[data-tier="3"] { background: #d97706; color: white; }
+.funnel-tier-pill[data-tier="4"] { background: #c2410c; color: white; }
+.funnel-tier-pill[data-tier="5"] { background: #991b1b; color: white; }
+
+.funnel-role {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.funnel-path {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.funnel-teaser {
+  padding: 10px 12px;
+  background: var(--bg-warm);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+.funnel-teaser-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-strong);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.funnel-teaser-text {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.5;
+  font-style: italic;
+}
+
 /* Post type badge */
 .post-type {
   margin: 14px 0 0;

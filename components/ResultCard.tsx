@@ -7,6 +7,7 @@ import type {
   PricingSuggestion,
   PostType,
   Recommendation,
+  FunnelStrategy,
 } from "@/lib/prompt";
 import type { ImageTags } from "@/lib/captioner";
 import { PLATFORMS } from "@/lib/platforms";
@@ -88,6 +89,41 @@ function PostToButton({ platformId }: { platformId: string }) {
     >
       Open {p.name} →
     </a>
+  );
+}
+
+function FunnelStrategyBlock({ strategy }: { strategy: FunnelStrategy }) {
+  if (!strategy) return null;
+  const tierLabels: Record<number, string> = {
+    1: "Tier 1 — Lifestyle / SFW",
+    2: "Tier 2 — Lingerie / implied",
+    3: "Tier 3 — Topless / partial nude",
+    4: "Tier 4 — Fully nude",
+    5: "Tier 5 — Explicit / niche",
+  };
+  const roleLabels: Record<string, string> = {
+    "top-of-funnel-teaser": "Top-of-funnel teaser",
+    "loyalty-content": "Loyalty content",
+    "soft-paywall": "Soft paywall",
+    "premium-paywall": "Premium paywall",
+    "exclusive-top-tier": "Exclusive top-tier",
+  };
+  return (
+    <div className="funnel">
+      <div className="funnel-header">
+        <span className="funnel-tier-pill" data-tier={strategy.this_image_tier}>
+          {tierLabels[strategy.this_image_tier] ?? `Tier ${strategy.this_image_tier}`}
+        </span>
+        <span className="funnel-role">{roleLabels[strategy.this_image_role] ?? strategy.this_image_role}</span>
+      </div>
+      <p className="funnel-path">{strategy.monetization_path}</p>
+      {strategy.teaser_variant_needed && (
+        <div className="funnel-teaser">
+          <span className="funnel-teaser-label">For social funnel, shoot a teaser variant:</span>
+          <p className="funnel-teaser-text">{strategy.teaser_variant_needed}</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -231,6 +267,8 @@ export function ResultCard({ result }: { result: FullResult }) {
 
   return (
     <div className="result">
+      {result.funnel_strategy && <FunnelStrategyBlock strategy={result.funnel_strategy} />}
+
       <div className="card card-primary">
         <div className="card-header">
           <h2 className="platform-name">
