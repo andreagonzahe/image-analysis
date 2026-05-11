@@ -21,8 +21,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "imageDataUrl must be a data: URL with an image MIME type" }, { status: 400 });
     }
 
-    const nsfw = await classifyNsfw(imageDataUrl);
-    const captioned = await captionImage(imageDataUrl);
+    // Run NSFW classifier and captioner in parallel. Both clients have built-in
+    // 429-backoff so if the user is on Replicate's burst-of-1 throttle (<$5 credit),
+    // the second call simply retries until the first completes — same total time
+    // as serial. With $5+ credit, this saves the 3-8s classifier round-trip.
+    const [nsfw, captioned] = await Promise.all([
+      classifyNsfw(imageDataUrl),
+      captionImage(imageDataUrl),
+    ]);
 
     const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags);
 

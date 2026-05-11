@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { savePost } from "@/lib/vault";
 import type { FullResult } from "@/components/ResultCard";
+import { PLATFORMS } from "@/lib/platforms";
 
 type Status = "pending" | "processing" | "done" | "error";
 
@@ -15,7 +16,10 @@ type Item = {
   error?: string;
 };
 
-const PER_IMAGE_ESTIMATE = 45;
+const PER_IMAGE_ESTIMATE = 40;
+
+const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
+const platformComposeUrl = (id: string) => PLATFORMS.find((p) => p.id === id)?.composeUrl;
 
 export function BatchQueue({
   initial,
@@ -36,9 +40,9 @@ export function BatchQueue({
   const [errorCount, setErrorCount] = useState(0);
   const [startTs, setStartTs] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const cancelRef = useRef(false);
 
-  // Auto-start
   useEffect(() => {
     void run();
     return () => {
@@ -82,7 +86,7 @@ export function BatchQueue({
   const total = items.length;
   const completed = doneCount + errorCount;
   const remaining = total - completed;
-  const etaSeconds = Math.max(0, remaining * PER_IMAGE_ESTIMATE - (elapsed % PER_IMAGE_ESTIMATE));
+  const etaSeconds = Math.max(0, remaining * PER_IMAGE_ESTIMATE);
   const overallPct = total === 0 ? 0 : completed / total;
   const allDone = !running && completed === total;
 
@@ -97,8 +101,8 @@ export function BatchQueue({
           </h2>
           <p className="batch-sub">
             {allDone
-              ? "Each completed analysis is now in your vault."
-              : "Each one takes ~30–50s. Auto-saving to your vault as they finish."}
+              ? "Each completed analysis is in your vault. Click any tile to open it inline."
+              : "Auto-saving to your vault as they finish. Click any done tile to start posting it now while the rest run."}
           </p>
         </div>
         {allDone ? (
@@ -137,16 +141,30 @@ export function BatchQueue({
 
       <div className="batch-grid">
         {items.map((it) => (
-          <BatchTile key={it.id} item={it} />
+          <BatchTile
+            key={it.id}
+            item={it}
+            expanded={expandedId === it.id}
+            onToggle={() => setExpandedId((cur) => (cur === it.id ? null : it.id))}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function BatchTile({ item }: { item: Item }) {
+function BatchTile({
+  item,
+  expanded,
+  onToggle,
+}: {
+  item: Item;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const platform = item.result?.primary_recommendation?.platform;
   const rating = item.result?.content_rating;
+  const tier = item.result?.content_tier;
   const pricing = item.result?.primary_recommendation?.pricing_suggestion;
   const priceLabel = pricing
     ? pricing.low_usd === pricing.high_usd
@@ -156,28 +174,87 @@ function BatchTile({ item }: { item: Item }) {
       : `$${pricing.low_usd}–$${pricing.high_usd}`
     : null;
 
+  const isDone = item.status === "done";
+  const canToggle = isDone;
+
   return (
-    <div className={`batch-tile batch-tile-${item.status}`}>
-      <div className="batch-thumb">
-        <img src={item.dataUrl} alt="" />
-        {rating && <span className={`rating-pill ${rating}`}>{rating}</span>}
-      </div>
-      <div className="batch-tile-body">
-        <div className="batch-tile-status">
-          {item.status === "pending" && <span className="status-dot status-pending" />}
-          {item.status === "processing" && <span className="spinner-small" />}
-          {item.status === "done" && <span className="status-dot status-done" />}
-          {item.status === "error" && <span className="status-dot status-error" />}
-          <span className="batch-tile-label">
-            {item.status === "pending" && "Queued"}
-            {item.status === "processing" && "Analyzing…"}
-            {item.status === "done" && platform}
-            {item.status === "error" && "Error"}
-          </span>
-          {priceLabel && <span className="batch-tile-price">{priceLabel}</span>}
+    <div className={`batch-tile batch-tile-${item.status} ${expanded ? "batch-tile-expanded" : ""}`}>
+      <button
+        type="button"
+        className="batch-tile-clickable"
+        onClick={canToggle ? onToggle : undefined}
+        disabled={!canToggle}
+        aria-expanded={expanded}
+      >
+        <div className="batch-thumb">
+          <img src={item.dataUrl} alt="" />
+          {rating && <span className={`rating-pill ${rating}`}>{rating}</span>}
+          {tier && <span className="batch-tile-tier" data-tier={tier}>T{tier}</span>}
         </div>
-        {item.status === "error" && (
-          <p className="batch-tile-error" title={item.error}>{item.error?.slice(0, 90)}</p>
+        <div className="batch-tile-body">
+          <div className="batch-tile-status">
+            {item.status === "pending" && <span className="status-dot status-pending" />}
+            {item.status === "processing" && <span className="spinner-small" />}
+            {item.status === "done" && <span className="status-dot status-done" />}
+            {item.status === "error" && <span className="status-dot status-error" />}
+            <span className="batch-tile-label">
+              {item.status === "pending" && "Queued"}
+              {item.status === "processing" && "Analyzing…"}
+              {item.status === "done" && (platform ? platformName(platform) : "Done")}
+              {item.status === "error" && "Error"}
+            </span>
+            {priceLabel && <span className="batch-tile-price">{priceLabel}</span>}
+          </div>
+          {item.status === "error" && (
+            <p className="batch-tile-error" title={item.error}>{item.error?.slice(0, 90)}</p>
+          )}
+          {isDone && (
+            <p className="batch-tile-hint">{expanded ? "Hide" : "Click to open"}</p>
+          )}
+        </div>
+      </button>
+
+      {expanded && item.result && <BatchTileExpanded result={item.result} />}
+    </div>
+  );
+}
+
+function BatchTileExpanded({ result }: { result: FullResult }) {
+  const pr = result.primary_recommendation;
+  const composeUrl = platformComposeUrl(pr.platform);
+  const fs = result.funnel_strategy;
+
+  const [copied, setCopied] = useState(false);
+  const fullText = pr.hashtags?.length ? `${pr.caption}\n\n${pr.hashtags.join(" ")}` : pr.caption;
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(fullText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+
+  return (
+    <div className="batch-tile-expanded-body">
+      {fs && (
+        <p className="batch-funnel-mini">
+          <strong>Tier {fs.this_image_tier} · {fs.this_image_role.replace(/-/g, " ")}.</strong>{" "}
+          {fs.monetization_path}
+        </p>
+      )}
+      <p className="caption-block" style={{ marginTop: 10 }}>{pr.caption}</p>
+      {pr.hashtags?.length > 0 && (
+        <ul className="hashtags" style={{ marginTop: 8 }}>
+          {pr.hashtags.map((h, i) => <li key={i}>{h}</li>)}
+        </ul>
+      )}
+      <div className="caption-actions" style={{ marginTop: 12 }}>
+        <button className="btn-ghost" onClick={copy}>
+          {copied ? "Copied ✓" : "Copy caption"}
+        </button>
+        {composeUrl && (
+          <a className="btn-compose" href={composeUrl} target="_blank" rel="noopener noreferrer">
+            Open {platformName(pr.platform)} →
+          </a>
         )}
       </div>
     </div>

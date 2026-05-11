@@ -1131,6 +1131,81 @@ h1.title {
   line-height: 1.4;
 }
 
+/* Clickable tile button (wraps thumb + body) */
+.batch-tile-clickable {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.batch-tile-clickable:disabled {
+  cursor: default;
+}
+
+.batch-tile-done .batch-tile-clickable:hover:not(:disabled) {
+  background: var(--bg-warm);
+}
+
+.batch-tile-expanded {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) { .batch-tile-expanded { grid-column: span 1; } }
+
+.batch-tile-tier {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.005em;
+}
+
+.batch-tile-tier[data-tier="1"] { background: #15803d; }
+.batch-tile-tier[data-tier="2"] { background: #b45309; }
+.batch-tile-tier[data-tier="3"] { background: #d97706; }
+.batch-tile-tier[data-tier="4"] { background: #c2410c; }
+.batch-tile-tier[data-tier="5"] { background: #991b1b; }
+
+.batch-tile-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.batch-tile-done:hover .batch-tile-hint { color: var(--accent-strong); }
+
+.batch-tile-expanded-body {
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.batch-funnel-mini {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.batch-funnel-mini strong {
+  color: var(--accent-strong);
+  text-transform: capitalize;
+}
+
 /* Save button */
 .save-row { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 
