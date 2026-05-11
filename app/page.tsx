@@ -7,10 +7,12 @@ import { Progress } from "@/components/Progress";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SaveButton } from "@/components/SaveButton";
 import { BatchQueue } from "@/components/BatchQueue";
+import { prepImage } from "@/lib/image-prep";
 
 export default function Home() {
   const [image, setImage] = useState<string | null>(null);
-  const [batch, setBatch] = useState<string[] | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [batch, setBatch] = useState<File[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FullResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,12 +45,20 @@ export default function Home() {
     setError(null);
   };
 
-  const onImages = (dataUrls: string[]) => {
+  const onFiles = async (files: File[]) => {
     setError(null);
-    if (dataUrls.length === 1) {
-      setImage(dataUrls[0]);
+    if (files.length === 1) {
+      setPreparing(true);
+      try {
+        const dataUrl = await prepImage(files[0]);
+        setImage(dataUrl);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setPreparing(false);
+      }
     } else {
-      setBatch(dataUrls);
+      setBatch(files);
     }
   };
 
@@ -60,7 +70,7 @@ export default function Home() {
             Batch <span className="title-accent">analyze</span>
           </h1>
         </header>
-        <BatchQueue initial={batch} onReset={reset} />
+        <BatchQueue files={batch} onReset={reset} />
       </main>
     );
   }
@@ -77,9 +87,9 @@ export default function Home() {
         </p>
       </header>
 
-      {!image && (
+      {!image && !preparing && (
         <>
-          <Dropzone onImages={onImages} onError={setError} />
+          <Dropzone onFiles={onFiles} onError={setError} />
           <p className="privacy-line">
             <span className="privacy-dot" aria-hidden /> Your images are analyzed on your own
             Replicate account — we never save them on our servers.{" "}
@@ -88,7 +98,14 @@ export default function Home() {
         </>
       )}
 
-      {image && !result && (
+      {preparing && (
+        <div className="prep-card">
+          <span className="spinner" />
+          <span>Reading your image…</span>
+        </div>
+      )}
+
+      {image && !result && !preparing && (
         <>
           <div className="preview">
             <div className="preview-img-wrap">

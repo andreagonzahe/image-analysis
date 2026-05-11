@@ -3,14 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { savePost } from "@/lib/vault";
+import { prepImage } from "@/lib/image-prep";
 import type { FullResult } from "@/components/ResultCard";
 import { PLATFORMS } from "@/lib/platforms";
 
-type Status = "pending" | "processing" | "done" | "error";
+type Status = "queued" | "preparing" | "analyzing" | "done" | "error";
 
 type Item = {
   id: string;
-  dataUrl: string;
+  file: File;
+  fileName: string;
+  dataUrl?: string;
   status: Status;
   result?: FullResult;
   error?: string;
@@ -21,18 +24,13 @@ const PER_IMAGE_ESTIMATE = 40;
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 const platformComposeUrl = (id: string) => PLATFORMS.find((p) => p.id === id)?.composeUrl;
 
-export function BatchQueue({
-  initial,
-  onReset,
-}: {
-  initial: string[];
-  onReset: () => void;
-}) {
+export function BatchQueue({ files, onReset }: { files: File[]; onReset: () => void }) {
   const [items, setItems] = useState<Item[]>(() =>
-    initial.map((dataUrl) => ({
+    files.map((file) => ({
       id: crypto.randomUUID(),
-      dataUrl,
-      status: "pending" as Status,
+      file,
+      fileName: file.name,
+      status: "queued" as Status,
     }))
   );
   const [running, setRunning] = useState(false);
@@ -62,16 +60,31 @@ export function BatchQueue({
     setStartTs(Date.now());
     for (let i = 0; i < items.length; i++) {
       if (cancelRef.current) break;
-      setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "processing" } : it)));
+      const file = items[i].file;
+
+      // Step 1: prep (HEIC → JPEG and resize). This produces the thumbnail.
+      setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "preparing" } : it)));
+      let dataUrl: string;
+      try {
+        dataUrl = await prepImage(file);
+        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, dataUrl, status: "analyzing" } : it)));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "error", error: `Couldn't read image: ${msg}` } : it)));
+        setErrorCount((c) => c + 1);
+        continue;
+      }
+
+      // Step 2: analyze + save to vault
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageDataUrl: items[i].dataUrl }),
+          body: JSON.stringify({ imageDataUrl: dataUrl }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Analyze failed");
-        await savePost({ imageDataUrl: items[i].dataUrl, analysis: data });
+        await savePost({ imageDataUrl: dataUrl, analysis: data });
         setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "done", result: data } : it)));
         setDoneCount((c) => c + 1);
       } catch (err) {
@@ -177,6 +190,21 @@ function BatchTile({
   const isDone = item.status === "done";
   const canToggle = isDone;
 
+  const statusLabel = (() => {
+    switch (item.status) {
+      case "queued":
+        return "Queued";
+      case "preparing":
+        return "Reading image…";
+      case "analyzing":
+        return "Analyzing…";
+      case "done":
+        return platform ? platformName(platform) : "Done";
+      case "error":
+        return "Error";
+    }
+  })();
+
   return (
     <div className={`batch-tile batch-tile-${item.status} ${expanded ? "batch-tile-expanded" : ""}`}>
       <button
@@ -187,22 +215,28 @@ function BatchTile({
         aria-expanded={expanded}
       >
         <div className="batch-thumb">
-          <img src={item.dataUrl} alt="" />
+          {item.dataUrl ? (
+            <img src={item.dataUrl} alt="" />
+          ) : (
+            <div className="batch-thumb-placeholder">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+              </svg>
+              <span className="batch-thumb-filename">{item.fileName}</span>
+            </div>
+          )}
           {rating && <span className={`rating-pill ${rating}`}>{rating}</span>}
           {tier && <span className="batch-tile-tier" data-tier={tier}>T{tier}</span>}
         </div>
         <div className="batch-tile-body">
           <div className="batch-tile-status">
-            {item.status === "pending" && <span className="status-dot status-pending" />}
-            {item.status === "processing" && <span className="spinner-small" />}
+            {item.status === "queued" && <span className="status-dot status-pending" />}
+            {(item.status === "preparing" || item.status === "analyzing") && <span className="spinner-small" />}
             {item.status === "done" && <span className="status-dot status-done" />}
             {item.status === "error" && <span className="status-dot status-error" />}
-            <span className="batch-tile-label">
-              {item.status === "pending" && "Queued"}
-              {item.status === "processing" && "Analyzing…"}
-              {item.status === "done" && (platform ? platformName(platform) : "Done")}
-              {item.status === "error" && "Error"}
-            </span>
+            <span className="batch-tile-label">{statusLabel}</span>
             {priceLabel && <span className="batch-tile-price">{priceLabel}</span>}
           </div>
           {item.status === "error" && (
