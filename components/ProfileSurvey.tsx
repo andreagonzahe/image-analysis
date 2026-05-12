@@ -51,7 +51,11 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           setPrimaryPlatforms(p.primary_platforms ?? []);
         }
         const isEmpty = !p || (!p.niche && (p.tones ?? []).length === 0 && !p.persona && (p.primary_platforms ?? []).length === 0);
-        if (isEmpty) {
+        const wasDismissed = Boolean(p?.survey_dismissed_at);
+        // Auto-open only on the analyzer (home) page so the modal doesn't
+        // ambush users on /today or /vault. They can re-open via /settings/profile.
+        const isHomePage = typeof window !== "undefined" && window.location.pathname === "/";
+        if (isEmpty && !wasDismissed && isHomePage) {
           setNeeded(true);
           setOpen(true);
         }
@@ -94,6 +98,30 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
+      setOpen(false);
+      setNeeded(false);
+      onClose?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const skip = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      // Save just the dismissal timestamp; we won't re-prompt.
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tones: [],
+          primary_platforms: [],
+          survey_dismissed_at: new Date().toISOString(),
+        }),
+      });
       setOpen(false);
       setNeeded(false);
       onClose?.();
@@ -213,6 +241,15 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
     <div className="survey-modal" role="dialog" aria-modal="true">
       <div className="survey-overlay" aria-hidden />
       <div className="survey-card">
+        {!forceOpen && step === 0 && (
+          <div className="survey-welcome">
+            <span className="survey-welcome-eyebrow">Welcome to Postwise</span>
+            <p className="survey-welcome-text">
+              One-time setup: 4 quick questions so captions sound like you.
+              Skip if you&rsquo;d rather get straight to the tool — you can fill this in later under Profile.
+            </p>
+          </div>
+        )}
         <div className="survey-header">
           <div className="survey-progress">
             {steps.map((_, i) => (
@@ -228,6 +265,16 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
         <div className="survey-body">{current.content}</div>
         {error && <div className="error-banner" style={{ marginTop: 12 }}>{error}</div>}
         <div className="survey-actions">
+          {!forceOpen && (
+            <button
+              className="btn-ghost"
+              onClick={skip}
+              disabled={saving}
+              style={{ marginRight: "auto" }}
+            >
+              Skip for now
+            </button>
+          )}
           {step > 0 && (
             <button className="btn btn-secondary" onClick={() => setStep((s) => s - 1)} disabled={saving}>
               Back

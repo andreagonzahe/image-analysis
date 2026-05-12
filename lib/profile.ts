@@ -7,6 +7,7 @@ export type CreatorProfile = {
   persona_detail?: string | null;
   primary_platforms: string[];
   audience_size?: Record<string, number> | null;
+  survey_dismissed_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };

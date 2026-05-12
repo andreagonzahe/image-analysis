@@ -1367,6 +1367,31 @@ h1.title {
   box-shadow: var(--shadow-lift);
 }
 
+.survey-welcome {
+  margin: -8px 0 18px;
+  padding: 12px 14px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(0, 175, 240, 0.25);
+  border-radius: 10px;
+}
+
+.survey-welcome-eyebrow {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--accent-strong);
+  margin-bottom: 4px;
+}
+
+.survey-welcome-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
 .survey-header {
   display: flex;
   align-items: center;

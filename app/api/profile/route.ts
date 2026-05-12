@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const row = {
+  const row: Record<string, unknown> = {
     user_id: userId,
     niche: body.niche ?? null,
     niche_detail: body.niche_detail ?? null,
@@ -54,6 +54,9 @@ export async function POST(req: Request) {
     audience_size: body.audience_size && typeof body.audience_size === "object" ? body.audience_size : null,
     updated_at: new Date().toISOString(),
   };
+  if (body.survey_dismissed_at !== undefined) {
+    row.survey_dismissed_at = body.survey_dismissed_at;
+  }
 
   const { error } = await getSupabase().from("profiles").upsert(row, { onConflict: "user_id" });
   if (error) {
