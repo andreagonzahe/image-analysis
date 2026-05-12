@@ -4,6 +4,7 @@ import { classifyNsfw } from "@/lib/nsfw";
 import { decideStrategy } from "@/lib/strategist";
 import { PLATFORMS } from "@/lib/platforms";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
+import { fetchProfile } from "@/lib/profile-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -21,16 +22,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "imageDataUrl must be a data: URL with an image MIME type" }, { status: 400 });
     }
 
-    // Run NSFW classifier and captioner in parallel. Both clients have built-in
-    // 429-backoff so if the user is on Replicate's burst-of-1 throttle (<$5 credit),
-    // the second call simply retries until the first completes — same total time
-    // as serial. With $5+ credit, this saves the 3-8s classifier round-trip.
-    const [nsfw, captioned] = await Promise.all([
+    // Run NSFW classifier, captioner, and profile fetch in parallel.
+    const [nsfw, captioned, profile] = await Promise.all([
       classifyNsfw(imageDataUrl),
       captionImage(imageDataUrl),
+      fetchProfile(),
     ]);
 
-    const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags);
+    const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile);
 
     const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
 

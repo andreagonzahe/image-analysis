@@ -543,6 +543,273 @@ h1.title {
   gap: 8px;
 }
 
+/* Nav profile link (Clerk-adjacent) */
+.nav-profile-link {
+  font-size: 14px;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.nav-profile-link:hover { color: var(--text); }
+
+/* Funnel plan CTA + view */
+.funnel-plan-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  background:
+    linear-gradient(135deg, var(--accent-soft), rgba(244, 114, 182, 0.06)),
+    var(--panel);
+  border-color: rgba(0, 175, 240, 0.25);
+}
+
+.funnel-plan-cta-text h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.funnel-plan-cta-text p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted-strong);
+  max-width: 420px;
+}
+
+.funnel-plan {
+  background: var(--panel);
+}
+
+.funnel-plan-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.funnel-plan-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.funnel-plan-revenue {
+  text-align: right;
+}
+
+.funnel-plan-revenue-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.funnel-plan-revenue-amount {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.funnel-plan-rationale {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.funnel-plan-order {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg-warm);
+  border-radius: 8px;
+}
+
+.funnel-plan-order-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.funnel-plan-order-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+.funnel-plan-order-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.funnel-plan-arrow {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.funnel-plan-plays {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.play-card {
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.play-card-hero {
+  border-color: var(--accent);
+  background:
+    linear-gradient(180deg, var(--accent-soft), transparent 60%),
+    var(--panel);
+}
+
+.play-card-skip {
+  opacity: 0.62;
+}
+
+.play-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.play-card-platform {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: var(--accent);
+  color: white;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.play-card-role {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 3px 9px;
+  background: var(--panel);
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+
+.play-card-shoot-teaser-variant .play-card-role { color: var(--rating-suggestive); border-color: rgba(180, 83, 9, 0.3); }
+.play-card-post-as-is .play-card-role { color: var(--rating-sfw); border-color: rgba(21, 128, 61, 0.25); }
+.play-card-skip .play-card-role { color: var(--muted); }
+
+.play-card-what {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.play-card-caption {
+  margin: 10px 0;
+}
+
+.play-card-caption-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.play-card-cta {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--accent-strong);
+}
+
+.play-card-cta-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+.play-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.play-card-footer > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.play-card-meta-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.play-card-meta-value {
+  font-size: 13px;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+.play-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
 /* Funnel strategy block — top of every result */
 .funnel {
   padding: 20px 22px;
@@ -1067,6 +1334,149 @@ h1.title {
   text-align: right;
   font-size: 13px;
   font-variant-caps: small-caps;
+}
+
+/* Profile survey modal */
+.survey-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.survey-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 7, 11, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: -1;
+}
+
+.survey-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  max-width: 580px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lift);
+}
+
+.survey-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.survey-progress {
+  display: flex;
+  gap: 6px;
+}
+
+.survey-dot {
+  width: 28px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.survey-dot-active { background: var(--accent); }
+
+.survey-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.survey-sub {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.survey-body {
+  margin-bottom: 20px;
+}
+
+.survey-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.survey-chip {
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  padding: 8px 14px;
+  font-size: 13.5px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.survey-chip:hover:not(:disabled):not(.survey-chip-active) {
+  border-color: var(--muted);
+}
+
+.survey-chip-active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.survey-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.survey-field {
+  display: block;
+  margin-top: 16px;
+}
+
+.survey-field span {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.survey-field input {
+  width: 100%;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.survey-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.survey-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 /* Age gate */

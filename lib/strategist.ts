@@ -1,10 +1,17 @@
 import { buildSystemPrompt, userMessage, type AnalysisResult } from "./prompt";
 import type { ImageTags } from "./captioner";
+import type { CreatorProfile } from "./profile";
+import { profileSummaryForPrompt } from "./profile";
 
 const TOGETHER_URL = "https://api.together.xyz/v1/chat/completions";
 const DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
 
-export async function decideStrategy(description: string, nsfwVerdict: "nsfw" | "normal", tags: ImageTags): Promise<AnalysisResult> {
+export async function decideStrategy(
+  description: string,
+  nsfwVerdict: "nsfw" | "normal",
+  tags: ImageTags,
+  profile?: CreatorProfile | null
+): Promise<AnalysisResult> {
   const apiKey = process.env.TOGETHER_API_KEY;
   if (!apiKey) {
     throw new Error("TOGETHER_API_KEY is not set. Get one at https://api.together.ai");
@@ -21,7 +28,7 @@ export async function decideStrategy(description: string, nsfwVerdict: "nsfw" | 
       model,
       messages: [
         { role: "system", content: buildSystemPrompt() },
-        { role: "user", content: userMessage(description, nsfwVerdict, tags) },
+        { role: "user", content: composeUserMessage(description, nsfwVerdict, tags, profile) },
       ],
       temperature: 0.6,
       max_tokens: 1200,
@@ -40,6 +47,18 @@ export async function decideStrategy(description: string, nsfwVerdict: "nsfw" | 
     throw new Error("Empty response from strategist model");
   }
   return extractJson(content) as AnalysisResult;
+}
+
+function composeUserMessage(
+  description: string,
+  nsfwVerdict: "nsfw" | "normal",
+  tags: ImageTags,
+  profile?: CreatorProfile | null
+): string {
+  const profileBlock = profileSummaryForPrompt(profile);
+  const base = userMessage(description, nsfwVerdict, tags);
+  if (!profileBlock) return base;
+  return `${profileBlock}\n\n${base}`;
 }
 
 function extractJson(raw: string): unknown {

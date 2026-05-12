@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { PLATFORMS } from "@/lib/platforms";
 import type { ImageTags } from "@/lib/captioner";
+import { fetchProfile } from "@/lib/profile-server";
+import { profileSummaryForPrompt } from "@/lib/profile";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -45,7 +47,10 @@ Rules:
 - Don't repeat the user's current caption. Take a different angle (e.g., if the current opens with the visual, open with a feeling; if it asks a question, make a statement).
 - Length per platform: Reddit 5-15 words title only. TikTok 1 short line. X/Bluesky 1-2 short lines. Instagram 2-4 sentences. LinkedIn 4-8 sentences with line breaks. OnlyFans/Fansly 2-3 sentences direct address. Patreon 3-5 sentences personal.`;
 
-    const userPrompt = `IMAGE_TAGS:
+    const profile = await fetchProfile();
+    const profileBlock = profileSummaryForPrompt(profile);
+
+    const userPrompt = `${profileBlock ? profileBlock + "\n\n" : ""}IMAGE_TAGS:
 ${JSON.stringify(body.tags, null, 2)}
 
 IMAGE_DESCRIPTION:

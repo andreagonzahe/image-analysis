@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ClerkProvider, SignInButton, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { AgeGate } from "@/components/AgeGate";
+import { ProfileSurvey } from "@/components/ProfileSurvey";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <body>
         <AgeGate />
+        {CLERK_ENABLED && signedIn && <ProfileSurvey />}
         <div className="app-shell">
           <nav className="nav">
             <Link href="/" className="brand">
@@ -43,7 +45,12 @@ async function Shell({ children }: { children: React.ReactNode }) {
                 <SignInButton mode="modal" />
               )}
               {CLERK_ENABLED && signedIn && (
-                <UserButton appearance={{ elements: { avatarBox: { width: 30, height: 30 } } }} />
+                <>
+                  <Link href="/settings/profile" className="nav-profile-link" title="Edit your creator profile">
+                    Profile
+                  </Link>
+                  <UserButton appearance={{ elements: { avatarBox: { width: 30, height: 30 } } }} />
+                </>
               )}
             </div>
           </nav>

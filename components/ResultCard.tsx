@@ -11,6 +11,7 @@ import type {
 } from "@/lib/prompt";
 import type { ImageTags } from "@/lib/captioner";
 import { PLATFORMS } from "@/lib/platforms";
+import { FunnelPlan } from "@/components/FunnelPlan";
 
 export type FullResult = AnalysisResult & {
   raw_description?: string;
@@ -429,6 +430,8 @@ export function ResultCard({ result: initialResult }: { result: FullResult }) {
           ))}
         </div>
       )}
+
+      <FunnelPlan result={result} />
 
       {result.do_not_post?.length > 0 && (
         <div className="card">

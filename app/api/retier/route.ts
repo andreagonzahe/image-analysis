@@ -3,6 +3,7 @@ import { decideStrategy } from "@/lib/strategist";
 import { PLATFORMS } from "@/lib/platforms";
 import type { ImageTags } from "@/lib/captioner";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
+import { fetchProfile } from "@/lib/profile-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,12 +29,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "forced_tier must be 1-5" }, { status: 400 });
     }
 
-    // Re-run the strategist. The prompt is unchanged — we tell it the user's
-    // chosen tier in the user message so it routes accordingly.
+    // Re-run the strategist with profile + forced tier hint.
+    const profile = await fetchProfile();
     const strategy = await decideStrategy(
       body.description + `\n\nUSER OVERRIDE: This image is content_tier ${body.forced_tier}. Route accordingly.`,
       body.nsfw_verdict,
-      body.tags
+      body.tags,
+      profile
     );
 
     const enforced = enforceForTier(strategy, body.forced_tier);
