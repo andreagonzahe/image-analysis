@@ -195,6 +195,9 @@ function FunnelStrategyBlock({
           <p className="funnel-teaser-text">{strategy.teaser_variant_needed}</p>
         </div>
       )}
+      <a href="/strategy" target="_blank" rel="noreferrer" className="funnel-learn-more">
+        Learn more about the funnel strategy →
+      </a>
     </div>
   );
 }

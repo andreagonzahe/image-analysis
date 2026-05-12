@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ClerkProvider, SignInButton, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
+import { AgeGate } from "@/components/AgeGate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <AgeGate />
         <div className="app-shell">
           <nav className="nav">
             <Link href="/" className="brand">
@@ -35,6 +37,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
             <div className="nav-links">
               <Link href="/">Analyzer</Link>
               <Link href="/vault">Vault</Link>
+              <Link href="/strategy">Strategy</Link>
               <Link href="/how-it-works">How it works</Link>
               {CLERK_ENABLED && !signedIn && (
                 <SignInButton mode="modal" />

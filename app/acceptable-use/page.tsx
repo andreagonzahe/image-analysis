@@ -119,8 +119,9 @@ export default function AcceptableUsePage() {
         <ul>
           <li>You confirm you and every identifiable subject are 18 or older.</li>
           <li>You confirm you are legally authorized to produce and distribute the content in your jurisdiction.</li>
-          <li>You acknowledge that, in some jurisdictions, distribution of adult content requires record-keeping (US 18 USC 2257), age verification, and additional licensing. Compliance with those requirements is your responsibility, not ours.</li>
-          <li>You acknowledge that platform compliance for adult content is much stricter than for SFW content, and that posting recommended adult content to a platform that prohibits it may result in account termination.</li>
+          <li>If you save adult content to the Vault while signed in, you authorize the storage of that content on your own Supabase project (private bucket, signed-URL access only). You can delete each entry via the Vault, which removes both the database row and the underlying file.</li>
+          <li>You acknowledge that, in some jurisdictions, distribution of adult content requires record-keeping (US 18 USC 2257), age verification (UK Online Safety Act, EU AVMSD), and additional licensing. Compliance with those requirements is your responsibility, not ours.</li>
+          <li>You acknowledge that platform compliance for adult content is much stricter than for SFW content, and that posting recommended adult content to a platform that prohibits it may result in account termination on that platform.</li>
         </ul>
 
         <h2>9. Enforcement</h2>

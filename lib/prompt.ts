@@ -179,8 +179,19 @@ Match voice exactly. For social FUNNEL captions (when promoting paid content), e
     "is_for_teaser_variant": false
   },
   "alternatives": [
-    /* For Tier 1-2: 2-3 other free platforms (or paid 'free for subs' / 'tip-unlock'). */
-    /* For Tier 3+: 1-2 other PAID platforms only (e.g., Fansly as alt to OF). NEVER free social platforms here for tier 3+ content. */
+    {
+      "platform": "<one of the allowed ids>",
+      "reason": "2-3 sentences",
+      "caption": "REQUIRED — actual caption text in this platform's voice. Must be a non-empty string. Each alt has its OWN caption tuned to its platform.",
+      "hashtags": ["..."],
+      "wisdom": { "principle": "<verbatim>", "attribution": "<verbatim>", "context": "<verbatim>" },
+      "pricing_suggestion": { ... } | null,
+      "post_type": { "label": "...", "description": "..." },
+      "strategy_alignment": "1-2 sentences"
+    }
+    /* Provide 2-3 entries total.
+       Tier 1-2: other free platforms (or paid 'free for subs' / 'tip-unlock').
+       Tier 3+: ONLY other PAID platforms — never free social. */
   ],
   "do_not_post": [
     { "platform": "<id>", "reason": "1-2 sentences. For Tier 3+, when listing free social platforms here, the reason should explain the FUNNEL RATIONALE — what teaser variant to shoot instead." }
@@ -194,7 +205,8 @@ Match voice exactly. For social FUNNEL captions (when promoting paid content), e
 3. wisdom citations are copied VERBATIM from the platform's wisdom list.
 4. Pricing matches the tier × tag matrix above.
 5. funnel_strategy.monetization_path must reference specific numbers and the actual flow.
-6. Output ONLY the JSON object.`;
+6. Every alternative MUST have a non-empty caption tuned to that platform's voice (not a copy of the primary caption). If you can't write one, don't include the alternative.
+7. Output ONLY the JSON object.`;
 }
 
 export function userMessage(description: string, nsfwVerdict: "nsfw" | "normal", tags: ImageTags): string {

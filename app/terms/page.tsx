@@ -48,11 +48,26 @@ export default function TermsPage() {
 
         <h2>4. Your content and license</h2>
         <p>
-          You retain all ownership and intellectual-property rights in the images, captions, and
-          other content you provide to the Service (&ldquo;User Content&rdquo;). The Service does
-          not store User Content on its own servers. You grant the Service a limited license to
-          process User Content for the sole purpose of providing recommendations to you, including
-          transmitting it to the third-party AI providers identified in the Privacy Policy.
+          You retain all ownership and intellectual-property rights in the images, videos,
+          captions, and other content you provide to the Service (&ldquo;User Content&rdquo;).
+        </p>
+        <p>
+          <strong>If you use the Service without signing in</strong>, the Service does not store
+          User Content on its own servers and does not store User Content on the Operator&rsquo;s
+          accounts with third-party processors — User Content exists only in your browser and is
+          forwarded to AI processors using your own API keys, as described in the Privacy Policy.
+        </p>
+        <p>
+          <strong>If you sign in and save User Content to the Vault</strong>, you authorize the
+          Service to store the User Content (image bytes and analysis JSON) in your own Supabase
+          project, in a private storage bucket and corresponding database row, until you delete it
+          via the Service. You confirm you have all rights necessary to make and authorize this
+          storage. The Operator does not access, replicate, or aggregate stored Vault content across
+          users.
+        </p>
+        <p>
+          You grant the Service a limited license to process User Content for the sole purpose of
+          providing recommendations and (when signed in) operating the Vault on your behalf.
         </p>
         <p>You represent and warrant that:</p>
         <ul>

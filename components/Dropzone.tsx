@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { isImageFile, MAX_DIM } from "@/lib/image-prep";
+import { isAcceptedFile, MAX_DIM } from "@/lib/image-prep";
 
 type Props = {
   onFiles: (files: File[]) => void;
@@ -14,14 +14,14 @@ export function Dropzone({ onFiles, onError }: Props) {
 
   const handleFiles = useCallback(
     (files: File[]) => {
-      const accepted = files.filter(isImageFile);
+      const accepted = files.filter(isAcceptedFile);
       if (accepted.length === 0) {
-        onError?.("No image files found in your selection.");
+        onError?.("No image or video files found in your selection.");
         return;
       }
       const rejected = files.length - accepted.length;
       if (rejected > 0) {
-        onError?.(`Skipped ${rejected} non-image file${rejected === 1 ? "" : "s"}.`);
+        onError?.(`Skipped ${rejected} unsupported file${rejected === 1 ? "" : "s"}.`);
       }
       onFiles(accepted);
     },
@@ -58,12 +58,12 @@ export function Dropzone({ onFiles, onError }: Props) {
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
       </div>
-      <div className="drop-main">Drop image(s) here, or click to choose</div>
-      <div className="drop-hint">JPEG · PNG · WebP · HEIC — drop one or many; processed live in the queue</div>
+      <div className="drop-main">Drop image(s) or video(s) here, or click to choose</div>
+      <div className="drop-hint">Images: JPEG · PNG · WebP · HEIC. Videos: MP4 · MOV · WebM, up to 15 min</div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.heic,.heif"
+        accept="image/*,video/*,.heic,.heif,.mp4,.mov,.webm,.m4v"
         multiple
         style={{ display: "none" }}
         onChange={(e) => {

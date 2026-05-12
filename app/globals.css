@@ -680,6 +680,104 @@ h1.title {
   font-style: italic;
 }
 
+.funnel-learn-more {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--accent-strong);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.funnel-learn-more:hover { color: var(--accent); text-decoration: underline; }
+
+/* Tier cards on strategy page */
+.tier-cards {
+  display: grid;
+  gap: 14px;
+  margin: 24px 0;
+}
+
+.tier-card {
+  padding: 20px 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.tier-card[data-tier="1"] { border-left-color: #15803d; }
+.tier-card[data-tier="2"] { border-left-color: #b45309; }
+.tier-card[data-tier="3"] { border-left-color: #d97706; }
+.tier-card[data-tier="4"] { border-left-color: #c2410c; }
+.tier-card[data-tier="5"] { border-left-color: #991b1b; }
+
+.tier-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tier-card-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.tier-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 5px;
+  color: white;
+  letter-spacing: -0.005em;
+}
+
+.tier-pill[data-tier="1"] { background: #15803d; }
+.tier-pill[data-tier="2"] { background: #b45309; }
+.tier-pill[data-tier="3"] { background: #d97706; }
+.tier-pill[data-tier="4"] { background: #c2410c; }
+.tier-pill[data-tier="5"] { background: #991b1b; }
+
+.tier-card p {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+
+.tier-card p:last-child { margin-bottom: 0; }
+
+.tier-card-role,
+.tier-card-action {
+  font-size: 13.5px;
+  color: var(--muted-strong);
+}
+
+.tier-card-role strong,
+.tier-card-action strong {
+  color: var(--text);
+}
+
+.funnel-steps {
+  padding-left: 24px;
+  margin: 18px 0;
+}
+
+.funnel-steps li {
+  margin-bottom: 14px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.funnel-steps li strong { color: var(--text); }
+
 /* Post type badge */
 .post-type {
   margin: 14px 0 0;
@@ -969,6 +1067,85 @@ h1.title {
   text-align: right;
   font-size: 13px;
   font-variant-caps: small-caps;
+}
+
+/* Age gate */
+.age-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.age-gate-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 7, 11, 0.55);
+  backdrop-filter: blur(8px);
+  z-index: -1;
+}
+
+.age-gate-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: var(--shadow-lift);
+}
+
+.age-gate-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.age-gate-sub {
+  margin: 0 0 20px;
+  font-size: 14.5px;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.age-gate-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.age-gate-row input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.age-gate-row a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.age-gate-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.age-gate-actions .btn {
+  padding: 11px 18px;
 }
 
 /* Spinner */

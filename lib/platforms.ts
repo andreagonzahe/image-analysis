@@ -49,9 +49,9 @@ export const PLATFORMS: Platform[] = [
     audience: "Gen Z and younger millennials, trend-driven",
     captionStyle: "Short, punchy, trend-referencing. Lowercase often. Hook in first 5 words.",
     hashtagNorm: "3-5 trending hashtags",
-    bestFor: "Video content primarily; for stills, only memes or trend-screenshot reactions",
-    whyItWorks: "TikTok's For You algorithm rewards retention. A still image as a 'photo carousel' can work if it has a clear hook and the trend wave is fresh.",
-    whyToAvoid: "TikTok's automated moderation is the strictest of any major platform — even cleavage in swimwear gets demoted. Strikes accumulate fast and accounts get age-restricted with no appeal.",
+    bestFor: "VIDEO content. A still image is almost never a primary recommendation for TikTok — only consider it for memes, screenshot reactions, or photo-carousels with a clear hook. For any video file (mp4/mov), TikTok is a strong primary candidate.",
+    whyItWorks: "TikTok's For You algorithm rewards retention on VIDEO. The platform is fundamentally a short-video network — your routing should reflect that. For static images, almost any other platform (Instagram, Pinterest, X) is a better fit.",
+    whyToAvoid: "Do NOT recommend TikTok as primary for a still image unless it's a meme/reaction with viral context. TikTok's automated moderation is also the strictest of any major platform — even cleavage in swimwear gets demoted. Strikes accumulate fast and accounts get age-restricted with no appeal.",
     composeUrl: "https://www.tiktok.com/upload",
     wisdom: [
       { id: "tt-3-seconds", principle: "Stop the scroll in the first 1-3 seconds or you've lost them", attribution: "TikTok's own Creator Portal guidance", context: "TikTok's algorithm decides whether to keep showing your content based on retention in the first 3 seconds. The first frame is effectively your thumbnail." },
