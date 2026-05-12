@@ -91,8 +91,8 @@ export default function Home() {
         <>
           <Dropzone onFiles={onFiles} onError={setError} />
           <p className="privacy-line">
-            <span className="privacy-dot" aria-hidden /> Your images are analyzed on your own
-            Replicate account — we never save them on our servers.{" "}
+            <span className="privacy-dot" aria-hidden /> Analyzed on your own Replicate account.
+            Vault images live on your own Supabase project when signed in (private bucket, signed URLs).{" "}
             <a href="/how-it-works#privacy">How privacy works →</a>
           </p>
         </>

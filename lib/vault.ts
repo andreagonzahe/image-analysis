@@ -21,6 +21,8 @@ export type RemotePost = {
   primary_platform: string;
   primary_price_low: number;
   primary_price_high: number;
+  image_path: string | null;
+  image_url: string | null; // signed URL valid for ~1 hour
 };
 
 export type MergedPost = {
@@ -33,6 +35,7 @@ export type MergedPost = {
   primary_price_high: number;
   image_blob?: Blob;
   thumb_blob?: Blob;
+  remote_image_url?: string | null;
   source: "local" | "remote" | "both";
 };
 
@@ -98,13 +101,14 @@ export async function savePost(args: {
   const db = await getDb();
   await db.put("posts", post);
 
-  // Best-effort cloud sync — never fail the local save
-  void syncToCloud(post).catch((err) => console.warn("Cloud sync failed:", err));
+  // Best-effort cloud sync — never fail the local save. Passes the data URL
+  // so the server can upload the image to Storage for cross-device access.
+  void syncToCloud(post, args.imageDataUrl).catch((err) => console.warn("Cloud sync failed:", err));
 
   return post;
 }
 
-async function syncToCloud(post: VaultPost): Promise<void> {
+async function syncToCloud(post: VaultPost, imageDataUrl?: string): Promise<void> {
   try {
     const res = await fetch("/api/vault/sync", {
       method: "POST",
@@ -117,6 +121,7 @@ async function syncToCloud(post: VaultPost): Promise<void> {
         primary_platform: post.primary_platform,
         primary_price_low: post.primary_price_low,
         primary_price_high: post.primary_price_high,
+        image_data_url: imageDataUrl,
       }),
     });
     // 401 = not signed in (OK), 200 with enabled=false = supabase off (OK)
@@ -156,7 +161,8 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
   for (const p of cloud.posts) {
     const existing = byId.get(p.id);
     if (existing) {
-      byId.set(p.id, { ...existing, source: "both" });
+      // Mark as synced both ways and attach the remote signed URL as fallback.
+      byId.set(p.id, { ...existing, source: "both", remote_image_url: p.image_url ?? undefined });
     } else {
       byId.set(p.id, {
         id: p.id,
@@ -166,6 +172,7 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         primary_platform: p.primary_platform,
         primary_price_low: p.primary_price_low,
         primary_price_high: p.primary_price_high,
+        remote_image_url: p.image_url ?? undefined,
         source: "remote",
       });
     }
@@ -197,13 +204,15 @@ export async function getPost(id: string): Promise<VaultPost | undefined> {
 
 /**
  * Backfill: push every local post to the cloud. Useful right after sign-in to
- * migrate existing local-only entries.
+ * migrate existing local-only entries. Reads the full image from IndexedDB and
+ * uploads it as part of the sync payload.
  */
 export async function syncAllLocalToCloud(): Promise<number> {
   const local = await listLocalPosts();
   let pushed = 0;
   for (const post of local) {
     try {
+      const imageDataUrl = await blobToDataUrl(post.image_blob).catch(() => undefined);
       await fetch("/api/vault/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -215,6 +224,7 @@ export async function syncAllLocalToCloud(): Promise<number> {
           primary_platform: post.primary_platform,
           primary_price_low: post.primary_price_low,
           primary_price_high: post.primary_price_high,
+          image_data_url: imageDataUrl,
         }),
       });
       pushed++;
@@ -223,6 +233,15 @@ export async function syncAllLocalToCloud(): Promise<number> {
     }
   }
   return pushed;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 export function blobToObjectUrl(blob: Blob): string {

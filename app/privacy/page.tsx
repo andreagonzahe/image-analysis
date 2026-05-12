@@ -39,10 +39,22 @@ export default function PrivacyPage() {
           to our servers in production. We do not collect, store, or have access to your keys.
         </p>
         <p>
-          <strong>Vault data.</strong> If you save an analysis to the Vault, the image and the
-          analysis are stored in IndexedDB inside your browser. They never leave your device. If
-          you clear your browser data or use a different device, vault contents are not synced.
+          <strong>Vault data — depends on whether you&rsquo;re signed in:</strong>
         </p>
+        <ul>
+          <li>
+            <strong>Not signed in</strong>: when you save to the Vault, the image and the analysis
+            JSON are stored in IndexedDB inside your browser. They never leave your device. If you
+            clear your browser data or use a different device, the vault is not synced.
+          </li>
+          <li>
+            <strong>Signed in</strong>: when you save to the Vault, the image is uploaded to a
+            PRIVATE bucket in your own Supabase project (<code>vault-images</code>, public=false).
+            The analysis JSON is stored alongside in the <code>posts</code> table. Images are
+            accessed only via short-lived (1-hour) signed URLs that the server generates on demand.
+            This is what lets you access the vault from a different browser or device.
+          </li>
+        </ul>
 
         <h2>3. Information we automatically receive</h2>
         <p>
@@ -88,7 +100,8 @@ export default function PrivacyPage() {
           <li><strong>On our servers</strong>: zero retention. Images and the text descriptions exist only in memory during the request.</li>
           <li><strong>On your Replicate account</strong>: predictions persist until you delete them in the Replicate dashboard.</li>
           <li><strong>On Together AI</strong>: governed by their privacy policy; we do not control retention there.</li>
-          <li><strong>In your browser&rsquo;s vault</strong>: until you delete the entry or clear browser data.</li>
+          <li><strong>In your browser&rsquo;s vault (always)</strong>: until you delete the entry or clear browser data.</li>
+          <li><strong>In your Supabase project (only if signed in)</strong>: image and analysis JSON persist in your own Supabase project until you delete the vault entry. Delete removes both the database row and the Storage object. The bucket is private; only your server (with the service-role key) can generate signed access URLs.</li>
         </ul>
 
         <h2>7. Your rights</h2>

@@ -291,6 +291,8 @@ function VaultCard({
       <div className="vault-thumb">
         {thumbUrl ? (
           <img src={thumbUrl} alt="" />
+        ) : post.remote_image_url ? (
+          <img src={post.remote_image_url} alt="" />
         ) : (
           <div className="vault-thumb-placeholder">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -298,7 +300,7 @@ function VaultCard({
               <circle cx="9" cy="9" r="2" />
               <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
             </svg>
-            <span>Image is on another device</span>
+            <span>Image unavailable</span>
           </div>
         )}
         <span className={`rating-pill ${post.content_rating}`}>{post.content_rating}</span>
