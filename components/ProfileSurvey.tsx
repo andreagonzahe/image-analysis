@@ -232,6 +232,41 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
       ),
       canNext: primaryPlatforms.length >= 1,
     },
+    {
+      title: "Review your profile",
+      sub: "This is what we'll use to tune captions and recommendations. Tap any section to edit.",
+      content: (
+        <div className="survey-review">
+          <ReviewSection
+            label="Niche"
+            value={niche ? (NICHE_OPTIONS.find((n) => n.id === niche)?.label ?? niche) : "—"}
+            detail={nicheDetail}
+            onEdit={() => setStep(0)}
+          />
+          <ReviewSection
+            label="Tones"
+            value={
+              tones.length
+                ? tones.map((t) => TONE_OPTIONS.find((x) => x.id === t)?.label ?? t).join(" · ")
+                : "—"
+            }
+            onEdit={() => setStep(1)}
+          />
+          <ReviewSection
+            label="Persona"
+            value={persona ? (PERSONA_OPTIONS.find((p) => p.id === persona)?.label ?? persona) : "—"}
+            detail={personaDetail}
+            onEdit={() => setStep(2)}
+          />
+          <ReviewSection
+            label="Active platforms"
+            value={primaryPlatforms.length ? primaryPlatforms.map(platformName).join(" · ") : "—"}
+            onEdit={() => setStep(3)}
+          />
+        </div>
+      ),
+      canNext: Boolean(niche) && tones.length >= 1 && primaryPlatforms.length >= 1,
+    },
   ];
 
   const current = steps[step];
@@ -295,11 +330,36 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
               onClick={save}
               disabled={!current.canNext || saving}
             >
-              {saving ? "Saving…" : "Save & continue"}
+              {saving ? "Saving…" : forceOpen ? "Save changes" : "Looks good — save"}
             </button>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReviewSection({
+  label,
+  value,
+  detail,
+  onEdit,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="review-section">
+      <div className="review-section-head">
+        <span className="review-section-label">{label}</span>
+        <button type="button" className="review-edit-btn" onClick={onEdit}>
+          Edit
+        </button>
+      </div>
+      <div className="review-section-value">{value}</div>
+      {detail && <div className="review-section-detail">{detail}</div>}
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClerkProvider, SignInButton, UserButton } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { AgeGate } from "@/components/AgeGate";
 import { ProfileSurvey } from "@/components/ProfileSurvey";
+import { SideNav } from "@/components/SideNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,45 +32,24 @@ async function Shell({ children }: { children: React.ReactNode }) {
         <AgeGate />
         {CLERK_ENABLED && signedIn && <ProfileSurvey />}
         <div className="app-shell">
-          <nav className="nav">
-            <Link href="/" className="brand">
-              <span className="brand-mark" />
-              <span>Postwise</span>
-            </Link>
-            <div className="nav-links">
-              <Link href="/">Analyzer</Link>
-              <Link href="/today">Today</Link>
-              <Link href="/vault">Vault</Link>
-              <Link href="/strategy">Strategy</Link>
-              <Link href="/how-it-works">How it works</Link>
-              {CLERK_ENABLED && !signedIn && (
-                <SignInButton mode="modal" />
-              )}
-              {CLERK_ENABLED && signedIn && (
-                <>
-                  <Link href="/settings/profile" className="nav-profile-link" title="Edit your creator profile">
-                    Profile
-                  </Link>
-                  <UserButton appearance={{ elements: { avatarBox: { width: 30, height: 30 } } }} />
-                </>
-              )}
-            </div>
-          </nav>
-          {children}
-          <footer className="footer">
-            <div className="footer-tagline">
-              Built for creators · No image storage on our side · Processed on your own Replicate account
-            </div>
-            <div className="footer-links">
-              <Link href="/terms">Terms</Link>
-              <span aria-hidden>·</span>
-              <Link href="/privacy">Privacy</Link>
-              <span aria-hidden>·</span>
-              <Link href="/acceptable-use">Acceptable Use</Link>
-              <span aria-hidden>·</span>
-              <Link href="/how-it-works">How it works</Link>
-            </div>
-          </footer>
+          <SideNav clerkEnabled={CLERK_ENABLED} signedIn={signedIn} />
+          <div className="main-column">
+            {children}
+            <footer className="footer">
+              <div className="footer-tagline">
+                Built for creators · No image storage on our side · Processed on your own Replicate account
+              </div>
+              <div className="footer-links">
+                <Link href="/terms">Terms</Link>
+                <span aria-hidden>·</span>
+                <Link href="/privacy">Privacy</Link>
+                <span aria-hidden>·</span>
+                <Link href="/acceptable-use">Acceptable Use</Link>
+                <span aria-hidden>·</span>
+                <Link href="/how-it-works">How it works</Link>
+              </div>
+            </footer>
+          </div>
         </div>
       </body>
     </html>
@@ -85,7 +65,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </ClerkProvider>
     );
   }
-  // Without Clerk, Shell still runs as async but with signedIn=false
   // @ts-expect-error async server component
   return <Shell>{children}</Shell>;
 }
