@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PLATFORMS } from "@/lib/platforms";
 import { fetchProfile } from "@/lib/profile-server";
 import { profileSummaryForPrompt } from "@/lib/profile";
+import { FRAMEWORK_PROMPT_SUMMARY } from "@/lib/creator-framework";
 import type { ImageTags } from "@/lib/captioner";
 import type { ContentTier } from "@/lib/prompt";
 
@@ -55,6 +56,8 @@ export async function POST(req: Request) {
     const platformBlock = PLATFORMS.map((p) => `- ${p.id}: ${p.paid ? "PAID" : "FREE"}, ${p.policy}, audience: ${p.audience.slice(0, 100)}`).join("\n");
 
     const sys = `You are a creator-funnel strategist. Given one piece of content already analyzed by Postwise, you produce a week-long, platform-by-platform play for the creator. Connect the content to the broader funnel: top-of-funnel discovery → teaser → paywall → sale.
+
+${FRAMEWORK_PROMPT_SUMMARY}
 
 Output ONLY this JSON, no prose, no fences:
 

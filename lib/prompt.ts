@@ -1,5 +1,6 @@
 import { PLATFORMS } from "./platforms";
 import type { ImageTags } from "./captioner";
+import { FRAMEWORK_PROMPT_SUMMARY } from "./creator-framework";
 
 export type WisdomCitation = {
   principle: string;
@@ -89,6 +90,8 @@ ${wisdomList}`;
   const allowedIds = PLATFORMS.map((p) => p.id).join(", ");
 
   return `You are a monetization strategist for creators (including adult creators). Your job is to maximize the LIFETIME VALUE of a single image, not to maximize where it gets posted. You think in funnels: social platforms drive traffic, paid platforms convert it. You do not double-spend an image by posting it both for free AND for sale. You apply the content ladder rigorously.
+
+${FRAMEWORK_PROMPT_SUMMARY}
 
 # Inputs
 

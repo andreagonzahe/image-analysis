@@ -1211,6 +1211,581 @@ h1.title {
 
 .funnel-steps li strong { color: var(--text); }
 
+/* ===== Strategy page visuals ===== */
+
+/* Reusable */
+.viz-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  border-radius: 999px;
+  margin: 3px 4px 3px 0;
+}
+
+.viz-chip-sm {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(0, 175, 240, 0.25);
+  color: var(--accent-strong);
+  border-radius: 999px;
+  margin: 2px 3px 0 0;
+}
+
+/* 1. Funnel diagram — visually tapered layers */
+.viz-funnel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 22px 0;
+}
+
+.viz-funnel-layer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.viz-funnel-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: var(--radius);
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.viz-funnel-layer-0 .viz-funnel-row { background: linear-gradient(135deg, rgba(21, 128, 61, 0.07), var(--panel)); border-color: rgba(21, 128, 61, 0.25); width: 100%; }
+.viz-funnel-layer-1 .viz-funnel-row { background: linear-gradient(135deg, rgba(180, 83, 9, 0.07), var(--panel)); border-color: rgba(180, 83, 9, 0.25); width: 85%; }
+.viz-funnel-layer-2 .viz-funnel-row { background: linear-gradient(135deg, rgba(217, 119, 6, 0.10), var(--panel)); border-color: rgba(217, 119, 6, 0.3); width: 70%; }
+.viz-funnel-layer-3 .viz-funnel-row { background: linear-gradient(135deg, rgba(153, 27, 27, 0.10), var(--panel)); border-color: rgba(153, 27, 27, 0.3); width: 55%; }
+
+@media (max-width: 720px) {
+  .viz-funnel-layer-0 .viz-funnel-row,
+  .viz-funnel-layer-1 .viz-funnel-row,
+  .viz-funnel-layer-2 .viz-funnel-row,
+  .viz-funnel-layer-3 .viz-funnel-row { width: 100%; }
+}
+
+.viz-funnel-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+  background: var(--text);
+}
+
+.viz-funnel-layer-0 .viz-funnel-num { background: #15803d; }
+.viz-funnel-layer-1 .viz-funnel-num { background: #b45309; }
+.viz-funnel-layer-2 .viz-funnel-num { background: #d97706; }
+.viz-funnel-layer-3 .viz-funnel-num { background: #991b1b; }
+
+.viz-funnel-meat { flex: 1; min-width: 0; }
+.viz-funnel-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.viz-funnel-job {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  color: var(--muted-strong);
+  line-height: 1.45;
+}
+
+.viz-funnel-platforms { margin-top: 2px; }
+
+.viz-funnel-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+/* 2. Content ladder (tiers) */
+.viz-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.viz-ladder-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+}
+
+.viz-ladder-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 5px;
+  color: white;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-ladder-row h4 {
+  margin: 0 0 2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.viz-ladder-row p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-strong);
+}
+
+/* 3. Content pillars grid */
+.viz-pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.viz-pillar-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.viz-pillar-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-grad);
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: calc(1 - (var(--pillar-index, 0) * 0.15));
+}
+
+.viz-pillar-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.viz-pillar-card h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.005em;
+}
+
+.viz-pillar-desc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.viz-pillar-examples {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.viz-pillar-examples li { margin-bottom: 3px; }
+
+/* 4. Offer stack tower */
+.viz-tower {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 22px 0;
+}
+
+.viz-tower-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.viz-tower-row:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow-card);
+}
+
+.viz-tower-row[data-rank="1"]  { background: linear-gradient(90deg, rgba(0, 175, 240, 0.04), var(--panel)); }
+.viz-tower-row[data-rank="2"]  { background: linear-gradient(90deg, rgba(0, 175, 240, 0.06), var(--panel)); }
+.viz-tower-row[data-rank="3"]  { background: linear-gradient(90deg, rgba(0, 175, 240, 0.08), var(--panel)); }
+.viz-tower-row[data-rank="4"]  { background: linear-gradient(90deg, rgba(0, 175, 240, 0.10), var(--panel)); }
+.viz-tower-row[data-rank="5"]  { background: linear-gradient(90deg, rgba(244, 114, 182, 0.10), var(--panel)); }
+.viz-tower-row[data-rank="6"]  { background: linear-gradient(90deg, rgba(244, 114, 182, 0.12), var(--panel)); }
+.viz-tower-row[data-rank="7"]  { background: linear-gradient(90deg, rgba(153, 27, 27, 0.10), var(--panel)); }
+.viz-tower-row[data-rank="8"]  { background: linear-gradient(90deg, rgba(153, 27, 27, 0.13), var(--panel)); }
+
+.viz-tower-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-warm);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--muted-strong);
+}
+
+.viz-tower-meat h4 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.viz-tower-aud {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.viz-tower-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-strong);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 5. Caption matrix — 2x2 */
+.viz-caption-matrix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 22px 0;
+}
+
+@media (max-width: 600px) { .viz-caption-matrix { grid-template-columns: 1fr; } }
+
+.viz-caption-cell {
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  position: relative;
+}
+
+.viz-caption-attraction { border-top: 3px solid #00aff0; }
+.viz-caption-curiosity  { border-top: 3px solid #a78bfa; }
+.viz-caption-conversion { border-top: 3px solid #f472b6; }
+.viz-caption-retention  { border-top: 3px solid #15803d; }
+
+.viz-caption-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.viz-caption-job {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+
+.viz-caption-example {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted-strong);
+  font-style: italic;
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--bg-warm);
+  border-radius: 8px;
+}
+
+/* 6. Daily 3-action — three side-by-side cards */
+.viz-daily {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 22px 0;
+}
+
+@media (max-width: 720px) { .viz-daily { grid-template-columns: 1fr; } }
+
+.viz-daily-card {
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  position: relative;
+  box-shadow: var(--shadow-card);
+}
+
+.viz-daily-discovery  { border-left: 4px solid #00aff0; }
+.viz-daily-conversion { border-left: 4px solid #f472b6; }
+.viz-daily-retention  { border-left: 4px solid #15803d; }
+
+.viz-daily-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+}
+
+.viz-daily-card h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.viz-daily-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+/* 7. Weekly calendar — 7 days */
+.viz-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin: 22px 0;
+}
+
+@media (max-width: 820px) { .viz-week { grid-template-columns: repeat(2, 1fr); } }
+
+.viz-day-card {
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+}
+
+.viz-day-card[data-i="4"], .viz-day-card[data-i="5"] {
+  background: linear-gradient(180deg, var(--accent-soft), var(--panel));
+  border-color: rgba(0, 175, 240, 0.25);
+}
+
+.viz-day-name {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.viz-day-job {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* 8. 30-day sprint timeline */
+.viz-sprint {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 22px 0;
+}
+
+@media (max-width: 720px) { .viz-sprint { grid-template-columns: 1fr; } .viz-sprint-track { display: none; } }
+
+.viz-sprint-track {
+  position: absolute;
+  top: 22px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: var(--accent-grad);
+  border-radius: 2px;
+}
+
+.viz-sprint-week {
+  position: relative;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.viz-sprint-marker {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 2;
+}
+
+.viz-sprint-week-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  font-size: 12.5px;
+  border: 3px solid var(--bg);
+}
+
+.viz-sprint-label {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+}
+
+.viz-sprint-goals {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+  line-height: 1.45;
+}
+
+.viz-sprint-goals li { margin-bottom: 4px; }
+
+/* 9. Archetypes grid */
+.viz-archetypes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.viz-archetype {
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.viz-archetype h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.005em;
+}
+
+.viz-archetype-promise {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.viz-archetype-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 10. Metrics dashboard */
+.viz-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.viz-metrics-cat {
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.viz-metrics-cat h4 {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--accent-strong);
+  letter-spacing: -0.005em;
+}
+
+.viz-metrics-cat ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.viz-metrics-cat li { margin-bottom: 3px; }
+
 /* Post type badge */
 .post-type {
   margin: 14px 0 0;
