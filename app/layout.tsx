@@ -38,6 +38,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
             </Link>
             <div className="nav-links">
               <Link href="/">Analyzer</Link>
+              <Link href="/today">Today</Link>
               <Link href="/vault">Vault</Link>
               <Link href="/strategy">Strategy</Link>
               <Link href="/how-it-works">How it works</Link>

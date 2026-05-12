@@ -13,6 +13,8 @@ export type VaultPost = {
   primary_price_high: number;
 };
 
+export type PostStatus = "pending" | "scheduled" | "posted" | "skipped";
+
 export type RemotePost = {
   id: string;
   created_at: string;
@@ -23,6 +25,11 @@ export type RemotePost = {
   primary_price_high: number;
   image_path: string | null;
   image_url: string | null; // signed URL valid for ~1 hour
+  status: PostStatus;
+  posted_at: string | null;
+  posted_on_platform: string | null;
+  scheduled_for: string | null;
+  notes: string | null;
 };
 
 export type MergedPost = {
@@ -37,6 +44,11 @@ export type MergedPost = {
   thumb_blob?: Blob;
   remote_image_url?: string | null;
   source: "local" | "remote" | "both";
+  status: PostStatus;
+  posted_at?: string | null;
+  posted_on_platform?: string | null;
+  scheduled_for?: string | null;
+  notes?: string | null;
 };
 
 interface VaultDB extends DBSchema {
@@ -156,13 +168,23 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
   const [local, cloud] = await Promise.all([listLocalPosts(), fetchCloudPosts()]);
   const byId = new Map<string, MergedPost>();
   for (const p of local) {
-    byId.set(p.id, { ...p, source: "local" });
+    // local posts default to pending unless they were synced and we get status back
+    byId.set(p.id, { ...p, source: "local", status: "pending" });
   }
   for (const p of cloud.posts) {
     const existing = byId.get(p.id);
     if (existing) {
-      // Mark as synced both ways and attach the remote signed URL as fallback.
-      byId.set(p.id, { ...existing, source: "both", remote_image_url: p.image_url ?? undefined });
+      // Cloud is the source of truth for status (it's the cross-device record).
+      byId.set(p.id, {
+        ...existing,
+        source: "both",
+        remote_image_url: p.image_url ?? undefined,
+        status: p.status,
+        posted_at: p.posted_at,
+        posted_on_platform: p.posted_on_platform,
+        scheduled_for: p.scheduled_for,
+        notes: p.notes,
+      });
     } else {
       byId.set(p.id, {
         id: p.id,
@@ -174,10 +196,35 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         primary_price_high: p.primary_price_high,
         remote_image_url: p.image_url ?? undefined,
         source: "remote",
+        status: p.status,
+        posted_at: p.posted_at,
+        posted_on_platform: p.posted_on_platform,
+        scheduled_for: p.scheduled_for,
+        notes: p.notes,
       });
     }
   }
   return Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
+}
+
+export async function updatePostStatus(
+  id: string,
+  patch: {
+    status?: PostStatus;
+    scheduled_for?: string | null;
+    posted_on_platform?: string | null;
+    notes?: string | null;
+  }
+): Promise<void> {
+  try {
+    await fetch(`/api/vault/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  } catch (err) {
+    console.warn("Status update failed:", err);
+  }
 }
 
 // Backwards-compat alias kept for any callers still using the old name

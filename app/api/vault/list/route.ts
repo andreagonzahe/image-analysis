@@ -16,6 +16,11 @@ type PostRow = {
   primary_price_low: number;
   primary_price_high: number;
   image_path: string | null;
+  status: "pending" | "scheduled" | "posted" | "skipped";
+  posted_at: string | null;
+  posted_on_platform: string | null;
+  scheduled_for: string | null;
+  notes: string | null;
 };
 
 export async function GET() {
@@ -31,7 +36,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("posts")
-    .select("id, created_at, analysis, content_rating, primary_platform, primary_price_low, primary_price_high, image_path")
+    .select("id, created_at, analysis, content_rating, primary_platform, primary_price_low, primary_price_high, image_path, status, posted_at, posted_on_platform, scheduled_for, notes")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 

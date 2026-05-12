@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, type MergedPost } from "@/lib/vault";
+import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, updatePostStatus, type MergedPost, type PostStatus } from "@/lib/vault";
 import { PLATFORMS } from "@/lib/platforms";
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
@@ -305,6 +305,9 @@ function VaultCard({
         )}
         <span className={`rating-pill ${post.content_rating}`}>{post.content_rating}</span>
         {isRemoteOnly && <span className="source-badge">Synced</span>}
+        {post.status && post.status !== "pending" && (
+          <span className={`status-badge status-badge-${post.status}`}>{post.status}</span>
+        )}
       </div>
       <div className="vault-body">
         <div className="vault-meta">
