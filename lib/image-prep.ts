@@ -4,7 +4,8 @@
 
 export const MAX_DIM = 2048;
 export const VIDEO_MAX_DURATION_SECONDS = 15 * 60; // 15 minutes
-export const VIDEO_FRAME_COUNT = 4;                 // 2x2 grid
+export const VIDEO_FRAME_COUNT = 9;                 // 3x3 grid (was 4 in 2x2)
+export const VIDEO_GRID_COLS = 3;
 
 export function isHeic(file: File): boolean {
   return /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type);
@@ -54,12 +55,22 @@ async function prepVideo(file: File, maxDim: number): Promise<string> {
       throw new Error(`Video is too long (${Math.round(duration)}s). Maximum is ${VIDEO_MAX_DURATION_SECONDS / 60} minutes.`);
     }
 
-    const frameTimes: number[] = [];
-    for (let i = 0; i < VIDEO_FRAME_COUNT; i++) {
-      // evenly spaced, biased away from the very first and last frames
-      const fraction = (i + 0.5) / VIDEO_FRAME_COUNT;
-      frameTimes.push(duration * fraction);
-    }
+    // Pick 9 timestamps: 2 near the start (hook frames matter for TikTok-style
+    // content), 5 evenly spread through the middle, 2 near the end (payoff).
+    // For very short videos, evenly-spaced still works.
+    const frameTimes: number[] = (() => {
+      if (duration < 8) {
+        return Array.from({ length: VIDEO_FRAME_COUNT }, (_, i) => duration * (i + 0.5) / VIDEO_FRAME_COUNT);
+      }
+      const startPair = [0.02, 0.08].map((f) => duration * f);
+      const endPair = [0.92, 0.98].map((f) => duration * f);
+      const middleCount = VIDEO_FRAME_COUNT - 4;
+      const middle = Array.from(
+        { length: middleCount },
+        (_, i) => duration * (0.15 + (0.70 * (i + 0.5) / middleCount))
+      );
+      return [...startPair, ...middle, ...endPair];
+    })();
 
     const frames: HTMLCanvasElement[] = [];
     for (const t of frameTimes) {
@@ -102,10 +113,11 @@ async function captureFrame(video: HTMLVideoElement, time: number): Promise<HTML
 
 function tileFramesAsDataUrl(frames: HTMLCanvasElement[], maxDim: number): string {
   if (frames.length === 0) throw new Error("No frames to tile");
-  // 2x2 grid for 4 frames; if fewer (edge cases), pad with the last frame.
-  const cols = 2;
+  const cols = VIDEO_GRID_COLS;
   const rows = Math.ceil(frames.length / cols);
-  const tileMaxDim = Math.floor(maxDim / 2); // each tile gets up to half the output dim
+  // Each tile gets up to (maxDim / cols) on its longest side, so a 3x3 grid
+  // at 2048 output dim gives ~683px tiles — still plenty of detail for tagging.
+  const tileMaxDim = Math.floor(maxDim / cols);
 
   // Scale each frame to fit tileMaxDim while preserving aspect ratio.
   const tiles = frames.map((c) => {

@@ -19,7 +19,7 @@ const TAG_PROMPT = `You are an image classifier. Output ONLY a single JSON objec
 
 # Note on video montages
 
-If the input looks like a 2x2 grid of similar frames (a video montage), treat it as ONE piece of content and describe the overall video. Tag attire/sensuality/etc. based on the MOST INTENSE frame (e.g., if one frame shows nudity and others don't, tag the whole thing at that level — the user is the one who shot the video and intends to post it as a unit).
+If the input looks like a 3x3 grid of similar frames (a video montage of 9 frames over time, read left-to-right top-to-bottom — earlier frames are top-left, later frames are bottom-right), treat it as ONE piece of content and describe the overall video. Tag attire/sensuality/etc. based on the MOST INTENSE frame (e.g., if one frame shows nudity and others don't, tag the whole thing at that level — the user is the one who shot the video and intends to post it as a unit). In the description, briefly note the temporal arc if it's interesting ("starts clothed, becomes implied nude" or "consistent throughout").
 
 # Bias to be conservative
 
