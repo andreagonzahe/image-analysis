@@ -50,6 +50,10 @@ export type Recommendation = {
   post_type?: PostType | null;
   strategy_alignment?: string | null;
   is_for_teaser_variant?: boolean;
+  // For paid platforms (OF/Fansly/Premium Snap) when the post type is a
+  // PPV unlock, tip-unlock, or custom commission — this is the DM-style
+  // sell message that accompanies the content unlock. Spicy, direct, emoji-rich.
+  ppv_dm_message?: string | null;
 };
 
 export type AnalysisResult = {
@@ -155,6 +159,23 @@ Patreon for adult content: cap at suggestive (Tier 2). For Tier 3+ use OF / Fans
 
 Match voice exactly. For social FUNNEL captions (when promoting paid content), end with a clear CTA pointing to the paid platform (e.g., "full set on OF 🔥 link in bio" or "the rest is on my Fansly..."). For PAID captions, address subscribers personally (1-on-1 voice, no CTA needed — they're already paying).
 
+# PPV / tip-unlock DM messages (REQUIRED for paid unlocks)
+
+When the recommendation is on a paid platform (onlyfans, fansly, snapchat-premium) AND post_type is "PPV unlock", "tip-unlock", or "custom commission", you MUST also produce a "ppv_dm_message". This is the mass-DM sell message creators paste when sending the locked content to subs.
+
+Write it like a creator writing to a SPECIFIC subscriber. Rules:
+- Direct address: "hey baby...", "you", "this one's for you..." — NEVER refer to "subscribers" or "my fans" plurally inside the message
+- Spicy and flirty. Use emojis generously (💋 🔥 😈 🥵 💦 ✨ — pick what fits the persona)
+- Build anticipation. HINT at what's inside without giving it away. Tease.
+- 2-4 lines max. Punchy. Each line short.
+- Include the price ONLY if it's part of an emotionally compelling line ("$X for this one... worth every cent baby 🔥"). Don't paste a sterile price tag.
+- Match the creator's tone(s) and persona from the profile if provided. A "sweet / girl-next-door" sub-message reads different from "dom / take-charge".
+- For "custom commission" the message is more of an invitation: "made something just for you..."
+
+For NON-PPV paid post types ("free for subscribers", "tier-locked"), set ppv_dm_message to null — those go in the feed, not as mass-DMs.
+
+For FREE PLATFORMS, ppv_dm_message is always null.
+
 # Output schema (return ONLY this JSON, no prose, no fences)
 
 {
@@ -176,7 +197,8 @@ Match voice exactly. For social FUNNEL captions (when promoting paid content), e
     "pricing_suggestion": { "model": "...", "low_usd": <int>, "high_usd": <int>, "rationale": "..." } | null,
     "post_type": { "label": "...", "description": "..." },
     "strategy_alignment": "1-2 sentences on strategic role",
-    "is_for_teaser_variant": false
+    "is_for_teaser_variant": false,
+    "ppv_dm_message": "<spicy DM-style sell message for PPV/tip-unlock — null otherwise>" | null
   },
   "alternatives": [
     {

@@ -1299,6 +1299,45 @@ h1.title {
   justify-content: flex-end;
 }
 
+/* PPV / tip-unlock DM sell message */
+.ppv-dm {
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  background:
+    linear-gradient(135deg, rgba(244, 114, 182, 0.10), rgba(167, 139, 250, 0.06)),
+    var(--panel);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-radius: 10px;
+}
+
+.ppv-dm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+
+.ppv-dm-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #be185d;
+  font-weight: 700;
+}
+
+.ppv-dm-text {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--panel);
+  border-radius: 8px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  border: 1px solid var(--border);
+}
+
 /* Pricing */
 .pricing {
   margin: 14px 0 0;

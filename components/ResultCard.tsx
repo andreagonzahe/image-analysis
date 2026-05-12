@@ -225,6 +225,26 @@ function PostTypeBadge({ postType }: { postType: PostType }) {
   );
 }
 
+function PpvDmMessage({ message }: { message: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <div className="ppv-dm">
+      <div className="ppv-dm-header">
+        <span className="ppv-dm-label">DM message (send with PPV unlock)</span>
+        <button className="btn-ghost" onClick={copy}>
+          {copied ? "Copied ✓" : "Copy"}
+        </button>
+      </div>
+      <p className="ppv-dm-text">{message}</p>
+    </div>
+  );
+}
+
 function PriceTag({ pricing }: { pricing: PricingSuggestion }) {
   const range =
     pricing.low_usd === pricing.high_usd
@@ -309,6 +329,7 @@ function RecBody({
 
       {rec.post_type && <PostTypeBadge postType={rec.post_type} />}
       {rec.pricing_suggestion && <PriceTag pricing={rec.pricing_suggestion} />}
+      {rec.ppv_dm_message && <PpvDmMessage message={rec.ppv_dm_message} />}
       {rec.strategy_alignment && <StrategyBlock text={rec.strategy_alignment} />}
       {rec.wisdom && <WisdomQuote wisdom={rec.wisdom} />}
 
