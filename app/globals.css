@@ -109,6 +109,28 @@ a:hover { color: var(--accent-strong); }
 
 .nav-links a:hover { color: var(--text); }
 
+/* Clerk's default SignInButton — make it match nav-links styling */
+.nav-links .cl-rootBox button,
+.nav-links button[data-clerk-component] {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted-strong);
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.nav-links .cl-rootBox button:hover,
+.nav-links button[data-clerk-component]:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--panel-2);
+}
+
 main {
   flex: 1;
   width: 100%;

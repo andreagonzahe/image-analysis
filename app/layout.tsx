@@ -37,9 +37,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
               <Link href="/vault">Vault</Link>
               <Link href="/how-it-works">How it works</Link>
               {CLERK_ENABLED && !signedIn && (
-                <SignInButton mode="modal">
-                  <button className="btn-ghost" style={{ padding: "6px 14px" }}>Sign in</button>
-                </SignInButton>
+                <SignInButton mode="modal" />
               )}
               {CLERK_ENABLED && signedIn && (
                 <UserButton appearance={{ elements: { avatarBox: { width: 30, height: 30 } } }} />
