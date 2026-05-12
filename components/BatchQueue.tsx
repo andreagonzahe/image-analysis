@@ -6,6 +6,7 @@ import { savePost } from "@/lib/vault";
 import { prepImage } from "@/lib/image-prep";
 import type { FullResult } from "@/components/ResultCard";
 import { PLATFORMS } from "@/lib/platforms";
+import { TileProgress } from "@/components/TileProgress";
 
 type Status = "queued" | "preparing" | "analyzing" | "done" | "error";
 
@@ -17,6 +18,7 @@ type Item = {
   status: Status;
   result?: FullResult;
   error?: string;
+  phaseStartedAt?: number; // ms epoch when current phase started
 };
 
 const PER_IMAGE_ESTIMATE = 40;
@@ -63,11 +65,11 @@ export function BatchQueue({ files, onReset }: { files: File[]; onReset: () => v
       const file = items[i].file;
 
       // Step 1: prep (HEIC → JPEG and resize). This produces the thumbnail.
-      setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "preparing" } : it)));
+      setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "preparing", phaseStartedAt: Date.now() } : it)));
       let dataUrl: string;
       try {
         dataUrl = await prepImage(file);
-        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, dataUrl, status: "analyzing" } : it)));
+        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, dataUrl, status: "analyzing", phaseStartedAt: Date.now() } : it)));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "error", error: `Couldn't read image: ${msg}` } : it)));
@@ -231,14 +233,17 @@ function BatchTile({
           {tier && <span className="batch-tile-tier" data-tier={tier}>T{tier}</span>}
         </div>
         <div className="batch-tile-body">
-          <div className="batch-tile-status">
-            {item.status === "queued" && <span className="status-dot status-pending" />}
-            {(item.status === "preparing" || item.status === "analyzing") && <span className="spinner-small" />}
-            {item.status === "done" && <span className="status-dot status-done" />}
-            {item.status === "error" && <span className="status-dot status-error" />}
-            <span className="batch-tile-label">{statusLabel}</span>
-            {priceLabel && <span className="batch-tile-price">{priceLabel}</span>}
-          </div>
+          {(item.status === "preparing" || item.status === "analyzing") && item.phaseStartedAt ? (
+            <TileProgress startedAt={item.phaseStartedAt} phase={item.status} />
+          ) : (
+            <div className="batch-tile-status">
+              {item.status === "queued" && <span className="status-dot status-pending" />}
+              {item.status === "done" && <span className="status-dot status-done" />}
+              {item.status === "error" && <span className="status-dot status-error" />}
+              <span className="batch-tile-label">{statusLabel}</span>
+              {priceLabel && <span className="batch-tile-price">{priceLabel}</span>}
+            </div>
+          )}
           {item.status === "error" && (
             <p className="batch-tile-error" title={item.error}>{item.error?.slice(0, 90)}</p>
           )}
