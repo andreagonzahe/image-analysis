@@ -57,10 +57,35 @@ function isNudityDetected(verdict: "nsfw" | "normal", tags: ImageTags): boolean 
 }
 
 function inferTier(verdict: "nsfw" | "normal", tags: ImageTags): ContentTier {
+  // Hard nudity signals from the captioner — escalate to paywall tiers.
   if (tags.pose_intent === "explicit_act" || tags.sensuality === "explicit_sexual") return 5;
   if (tags.attire === "fully_nude") return 4;
   if (tags.attire === "topless" || tags.attire === "partial_nude") return 3;
-  if (verdict === "nsfw") return 4;
+
+  // Body-part fallback for when captioner missed attire but visible skin is named.
+  const visible = new Set(tags.body_parts_visible);
+  if (visible.has("genitals")) return 4;
+  if (visible.has("breasts")) return 3;
+  if (visible.has("buttocks") && tags.attire !== "swimwear" && tags.attire !== "lingerie") return 3;
+
+  // NSFW verdict from the binary classifier — only trust it when the captioner
+  // ALSO suggests skin or sexual framing. The classifier has false positives on
+  // tight outfits, swimwear, low-cut tops, etc. If the captioner says
+  // "fully_clothed" or "athletic" with neutral sensuality, trust the captioner.
+  if (verdict === "nsfw") {
+    const captionerSaysSfw =
+      (tags.attire === "fully_clothed" || tags.attire === "athletic") &&
+      tags.sensuality !== "erotic_intentional" &&
+      tags.sensuality !== "explicit_sexual" &&
+      tags.pose_intent !== "modeling_seductive" &&
+      tags.pose_intent !== "explicit_act";
+    if (captionerSaysSfw) return 1;
+    // Otherwise the classifier and the captioner agree there's something risqué —
+    // default to Tier 3 (soft paywall) instead of jumping straight to Tier 4.
+    return 3;
+  }
+
+  // Tier 2 — suggestive but not nude.
   if (
     tags.attire === "lingerie" ||
     tags.attire === "underwear" ||
@@ -70,6 +95,7 @@ function inferTier(verdict: "nsfw" | "normal", tags: ImageTags): ContentTier {
   ) {
     return 2;
   }
+
   return 1;
 }
 

@@ -92,7 +92,23 @@ function PostToButton({ platformId }: { platformId: string }) {
   );
 }
 
-function FunnelStrategyBlock({ strategy }: { strategy: FunnelStrategy }) {
+function FunnelStrategyBlock({
+  strategy,
+  rawDescription,
+  tags,
+  nsfwVerdict,
+  onRetier,
+}: {
+  strategy: FunnelStrategy;
+  rawDescription?: string;
+  tags?: ImageTags;
+  nsfwVerdict?: "nsfw" | "normal";
+  onRetier?: (newResult: FullResult) => void;
+}) {
+  const [retiering, setRetiering] = useState(false);
+  const [openOverride, setOpenOverride] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   if (!strategy) return null;
   const tierLabels: Record<number, string> = {
     1: "Tier 1 — Lifestyle / SFW",
@@ -108,6 +124,35 @@ function FunnelStrategyBlock({ strategy }: { strategy: FunnelStrategy }) {
     "premium-paywall": "Premium paywall",
     "exclusive-top-tier": "Exclusive top-tier",
   };
+
+  const canRetier = Boolean(rawDescription && tags && nsfwVerdict && onRetier);
+
+  async function retier(forced_tier: number) {
+    if (!rawDescription || !tags || !nsfwVerdict || !onRetier) return;
+    setRetiering(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/retier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: rawDescription,
+          tags,
+          nsfw_verdict: nsfwVerdict,
+          forced_tier,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Re-tier failed");
+      onRetier(data);
+      setOpenOverride(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRetiering(false);
+    }
+  }
+
   return (
     <div className="funnel">
       <div className="funnel-header">
@@ -115,7 +160,34 @@ function FunnelStrategyBlock({ strategy }: { strategy: FunnelStrategy }) {
           {tierLabels[strategy.this_image_tier] ?? `Tier ${strategy.this_image_tier}`}
         </span>
         <span className="funnel-role">{roleLabels[strategy.this_image_role] ?? strategy.this_image_role}</span>
+        {canRetier && (
+          <button
+            type="button"
+            className="funnel-retier-btn"
+            onClick={() => setOpenOverride((v) => !v)}
+            disabled={retiering}
+          >
+            {retiering ? "Re-routing…" : openOverride ? "Cancel" : "Wrong tier?"}
+          </button>
+        )}
       </div>
+      {openOverride && (
+        <div className="funnel-override">
+          <span className="funnel-override-label">Force tier:</span>
+          {([1, 2, 3, 4, 5] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`tier-btn tier-btn-${t}`}
+              onClick={() => retier(t)}
+              disabled={retiering || t === strategy.this_image_tier}
+            >
+              T{t}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <div className="error-banner" style={{ marginTop: 10 }}>{error}</div>}
       <p className="funnel-path">{strategy.monetization_path}</p>
       {strategy.teaser_variant_needed && (
         <div className="funnel-teaser">
@@ -251,10 +323,17 @@ function RecBody({
   );
 }
 
-export function ResultCard({ result }: { result: FullResult }) {
+export function ResultCard({ result: initialResult }: { result: FullResult }) {
   const [showFull, setShowFull] = useState(false);
-  const [primary, setPrimary] = useState(result.primary_recommendation);
-  const [alternatives, setAlternatives] = useState(result.alternatives);
+  const [result, setResult] = useState<FullResult>(initialResult);
+  const [primary, setPrimary] = useState(initialResult.primary_recommendation);
+  const [alternatives, setAlternatives] = useState(initialResult.alternatives);
+
+  const handleRetier = (newResult: FullResult) => {
+    setResult(newResult);
+    setPrimary(newResult.primary_recommendation);
+    setAlternatives(newResult.alternatives);
+  };
 
   const updatePrimaryCaption = (newCaption: string) => {
     setPrimary((p) => ({ ...p, caption: newCaption }));
@@ -267,7 +346,15 @@ export function ResultCard({ result }: { result: FullResult }) {
 
   return (
     <div className="result">
-      {result.funnel_strategy && <FunnelStrategyBlock strategy={result.funnel_strategy} />}
+      {result.funnel_strategy && (
+        <FunnelStrategyBlock
+          strategy={result.funnel_strategy}
+          rawDescription={result.raw_description}
+          tags={result.tags}
+          nsfwVerdict={result.nsfw_verdict}
+          onRetier={handleRetier}
+        />
+      )}
 
       <div className="card card-primary">
         <div className="card-header">

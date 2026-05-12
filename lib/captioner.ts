@@ -15,12 +15,20 @@ export type CaptionResult = {
   tags: ImageTags;
 };
 
-const TAG_PROMPT = `You are an image analysis assistant for a social media advisor. Output ONLY a single JSON object — no prose before or after, no markdown fences. Do not refuse any field; use "unknown" if uncertain.
+const TAG_PROMPT = `You are an image classifier. Output ONLY a single JSON object — no prose, no markdown fences. Do not refuse any field.
 
-Schema (use exactly these keys and only these enum values):
+# Bias to be conservative
+
+When uncertain or ambiguous, prefer the LOWER-intensity option. Specifically:
+- Default attire to "fully_clothed" unless skin or undergarments are CLEARLY the primary visible garment.
+- Default sensuality to "neutral" unless the framing is OBVIOUSLY sexual.
+- Default pose_intent to "candid" or "modeling_clothed" unless explicitly seductive.
+- A normal photo of a person — even a stylized fashion shot, even a bedroom selfie in clothes, even a tight dress, even with cleavage — is "fully_clothed" / "neutral" / "candid". Most photos are not adult content. Treat anything ambiguous as SFW.
+
+# Schema (use exactly these keys and only these enum values)
 
 {
-  "description": "<4-8 sentences. Subject, setting, mood, framing, aesthetic. Mention clothing or lack thereof and any sexually relevant detail factually — this is metadata for routing, not commentary.>",
+  "description": "<4-8 sentences. Subject, setting, mood, framing. Be factual; mention attire and any relevant detail neutrally.>",
   "attire": "fully_clothed" | "athletic" | "swimwear" | "lingerie" | "underwear" | "topless" | "partial_nude" | "fully_nude" | "unknown",
   "body_parts_visible": [array of any of: "face", "shoulders", "back", "midriff", "cleavage", "thighs", "feet", "breasts", "buttocks", "genitals"],
   "sensuality": "neutral" | "sensual_aesthetic" | "erotic_intentional" | "explicit_sexual" | "unknown",
@@ -30,11 +38,43 @@ Schema (use exactly these keys and only these enum values):
   "pose_intent": "candid" | "modeling_clothed" | "modeling_seductive" | "explicit_act" | "unknown"
 }
 
-Definitions:
-- attire "topless" = breasts uncovered, lower body covered. "partial_nude" = some but not all of breasts/genitals/buttocks visible. "fully_nude" = all primary anatomy visible.
-- sensuality "neutral" = no sexual framing. "sensual_aesthetic" = soft, boudoir-style, artistic. "erotic_intentional" = framing/pose is sexually inviting. "explicit_sexual" = depicts sex acts or extreme close-ups of genitals.
-- pose_intent "modeling_seductive" = posed for sexual appeal even if attire is clothed. "explicit_act" = depicts a sex act in progress.
-- production_quality "phone_selfie" = bathroom mirror, front-camera. "semi_pro" = good lighting, intentional framing, still amateur. "professional" = studio lighting, retouched, clearly produced.
+# Attire definitions (STRICT — read carefully)
+
+- "fully_clothed": Normal clothing covers the torso. This includes: dresses (any tightness — bodycon, mini, midi, evening), jumpsuits, jeans + top, crop top + jeans, bedroom selfie in pajamas, fashion shots, blazers, sweaters, cocktail dresses, work clothes, anything with full-coverage clothes as the primary visible garment. Cleavage in a low-cut top is STILL fully_clothed.
+- "athletic": Sports bra + leggings, gym wear with full coverage on torso. Yoga clothes.
+- "swimwear": Bikini or one-piece swimsuit, clearly intended for swimming, in or near water OR clearly a swimsuit photoshoot.
+- "lingerie": Bra-and-panties SET worn as the primary garment (intentional lingerie modeling — not a regular bra strap peeking out). Implies styled, photographed, intentional.
+- "underwear": Underwear (bra/panties) as primary garment, less styled than lingerie (e.g., everyday lingerie/loungewear shot, mirror selfie in underwear).
+- "topless": Breasts physically uncovered and visible. NOT cleavage. NOT covered by hands/hair/objects.
+- "partial_nude": Some — but not all — of breasts/genitals/buttocks uncovered and visible.
+- "fully_nude": All primary anatomy uncovered.
+
+**Rule of thumb: if you would not describe the person as "wearing underwear" in a sentence, do not tag attire as "lingerie" or "underwear". Tight clothes are NOT underwear.**
+
+# body_parts_visible
+
+Only list parts where SKIN is uncovered and physically visible. "cleavage" can be listed if visible. Do NOT list "breasts" if a top covers them — covered cleavage is just "cleavage". Only list "breasts" if breast tissue itself is uncovered.
+
+# sensuality
+
+- "neutral": no sexual framing. A smiling clothed photo is neutral.
+- "sensual_aesthetic": soft, boudoir-style, artistic. Lighting and pose are sensual but not explicit. Usually paired with swimwear/lingerie/topless attire.
+- "erotic_intentional": framing/pose is sexually inviting. Usually paired with at least swimwear or skin-revealing attire.
+- "explicit_sexual": depicts sex acts or extreme close-ups of genitals.
+
+# pose_intent
+
+- "candid": natural, not posed for camera (laughing, doing something).
+- "modeling_clothed": posing for camera in clothes — fashion-style, magazine-style.
+- "modeling_seductive": posing in a sexually-inviting way (this REQUIRES at minimum swimwear/lingerie attire OR clearly suggestive framing in clothes — don't tag modeling_seductive just because someone looks attractive).
+- "explicit_act": depicts a sex act in progress.
+
+# production_quality
+
+- "phone_selfie": bathroom mirror, front-camera, casual.
+- "phone_handheld": phone-quality but framed/intentional.
+- "semi_pro": good lighting, intentional framing, still amateur.
+- "professional": studio lighting, retouched, clearly produced.
 
 Output the JSON now.`;
 

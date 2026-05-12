@@ -562,7 +562,69 @@ h1.title {
   letter-spacing: 0.08em;
   color: var(--accent-strong);
   font-weight: 600;
+  flex: 1;
 }
+
+.funnel-retier-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted-strong);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.funnel-retier-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.funnel-retier-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.funnel-override {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--bg-warm);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.funnel-override-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.tier-btn {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 0;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.tier-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.tier-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.tier-btn-1 { background: #15803d; }
+.tier-btn-2 { background: #b45309; }
+.tier-btn-3 { background: #d97706; }
+.tier-btn-4 { background: #c2410c; }
+.tier-btn-5 { background: #991b1b; }
 
 .funnel-path {
   margin: 0 0 12px;
