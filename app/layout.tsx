@@ -8,9 +8,9 @@ import { SideNav } from "@/components/SideNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Postwise — Where should I post this?",
+  title: "Postwise — Posting strategy for creators monetizing on OnlyFans, Fansly, Patreon",
   description:
-    "Drop an image. Get the best platform to post it on and a caption tuned for that audience, backed by creator-marketing principles.",
+    "Built for creators monetizing on OnlyFans, Fansly, and Patreon. Routes every photo to the right rung on the content ladder so paid-tier content stays a PPV unlock — not a free X post that undercuts your sale.",
 };
 
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
@@ -37,7 +37,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
             {children}
             <footer className="footer">
               <div className="footer-tagline">
-                Built for creators · No image storage on our side · Processed on your own Replicate account
+                Built for creators monetizing on OnlyFans, Fansly, and Patreon · Your content on your own accounts
               </div>
               <div className="footer-links">
                 <Link href="/terms">Terms</Link>

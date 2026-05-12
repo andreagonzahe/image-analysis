@@ -8,6 +8,38 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SaveButton } from "@/components/SaveButton";
 import { BatchQueue } from "@/components/BatchQueue";
 import { prepImage } from "@/lib/image-prep";
+import Link from "next/link";
+
+function ValueProp() {
+  return (
+    <section className="valueprop">
+      <h2 className="valueprop-title">Why every post matters</h2>
+      <div className="valueprop-grid">
+        <div className="valueprop-row valueprop-row-bad">
+          <div className="valueprop-where">
+            <span className="valueprop-tag valueprop-tag-bad">FREE on X</span>
+            <h3>That nude photo</h3>
+          </div>
+          <div className="valueprop-value">$0</div>
+          <p className="valueprop-note">…and it undercuts the OF sale.</p>
+        </div>
+
+        <div className="valueprop-row valueprop-row-good">
+          <div className="valueprop-where">
+            <span className="valueprop-tag valueprop-tag-good">PPV on OnlyFans</span>
+            <h3>Same photo, sold</h3>
+          </div>
+          <div className="valueprop-value">$15–25</div>
+          <p className="valueprop-note">…with a teaser variant funneling subs from X.</p>
+        </div>
+      </div>
+      <p className="valueprop-bottom">
+        At 4 paid-tier pieces a week, that&rsquo;s <strong>$240–$400/mo</strong> you stop leaving on
+        the table. <Link href="/strategy">See the full strategy →</Link>
+      </p>
+    </section>
+  );
+}
 
 export default function Home() {
   const [image, setImage] = useState<string | null>(null);
@@ -82,8 +114,9 @@ export default function Home() {
           Where should I <span className="title-accent">post this?</span>
         </h1>
         <p className="hero-sub">
-          Drop one image — or many. Get the right platform, a caption in that platform&rsquo;s
-          voice, suggested pricing for paid platforms, and the principles backing each call.
+          Posting strategy for creators monetizing on OnlyFans, Fansly, and Patreon. Every photo
+          gets routed to its right rung on the content ladder — so your paid pieces stay paid,
+          and your free social runs the funnel that feeds them.
         </p>
       </header>
 
@@ -95,6 +128,7 @@ export default function Home() {
             Vault images live on your own Supabase project when signed in (private bucket, signed URLs).{" "}
             <a href="/how-it-works#privacy">How privacy works →</a>
           </p>
+          <ValueProp />
         </>
       )}
 

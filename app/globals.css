@@ -3561,6 +3561,121 @@ h1.title {
 
 .privacy-block a:hover { text-decoration: underline; }
 
+/* Homepage value-prop panel */
+.valueprop {
+  margin-top: 40px;
+  padding: 28px 28px 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.valueprop-title {
+  margin: 0 0 18px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-align: center;
+}
+
+.valueprop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 640px) { .valueprop-grid { grid-template-columns: 1fr; } }
+
+.valueprop-row {
+  padding: 18px 20px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.valueprop-row-bad {
+  background: linear-gradient(135deg, rgba(185, 28, 28, 0.06), var(--bg-warm));
+  border-color: rgba(185, 28, 28, 0.2);
+}
+
+.valueprop-row-good {
+  background: linear-gradient(135deg, rgba(0, 175, 240, 0.06), rgba(244, 114, 182, 0.04));
+  border-color: rgba(0, 175, 240, 0.25);
+}
+
+.valueprop-where h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.valueprop-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 9px;
+  border-radius: 5px;
+}
+
+.valueprop-tag-bad {
+  background: rgba(185, 28, 28, 0.12);
+  color: var(--rating-nsfw);
+}
+
+.valueprop-tag-good {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.valueprop-value {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.valueprop-row-bad .valueprop-value { color: var(--rating-nsfw); }
+.valueprop-row-good .valueprop-value { color: var(--accent-strong); }
+
+.valueprop-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.45;
+}
+
+.valueprop-bottom {
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.valueprop-bottom strong {
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.valueprop-bottom a {
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
+.valueprop-bottom a:hover { text-decoration: underline; }
+
 .cta-row {
   display: flex;
   gap: 12px;

@@ -24,9 +24,10 @@ export default function StrategyPage() {
           From discovery to <span className="title-accent">premium sale</span>
         </h1>
         <p className="hero-sub">
-          Postwise applies a standard adult-creator monetization framework: clear persona ·
-          layered funnel · platform-specific captions · daily three-action rhythm. Every recommendation
-          you see in the analyzer is grounded in this framework.
+          Built for creators monetizing on OnlyFans, Fansly, and Patreon. This is the playbook
+          Postwise applies to every photo you analyze: clear persona, layered funnel, platform-specific
+          captions, daily three-action rhythm. The goal is simple — every piece earns where it&rsquo;s worth
+          the most, never where it cannibalizes a paid sale.
         </p>
       </header>
 

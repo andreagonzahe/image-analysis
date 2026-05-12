@@ -6,8 +6,9 @@ export default function HowItWorks() {
       <header className="how-hero">
         <h1 className="title">How Postwise works</h1>
         <p className="hero-sub">
-          The same photo can flop on Instagram and go viral on Reddit — or get your TikTok shadow-banned.
-          We figure out the difference for you in under a minute, then route paid-tier content to OnlyFans, Fansly, or Patreon while building a teaser-first funnel on social.
+          A nude photo posted free on X earns $0 — and undercuts the OnlyFans sale of the same image.
+          The same photo, routed to OF as a PPV unlock with a Tier-2 teaser on X, earns $15–25. Postwise
+          enforces that difference for every piece you upload, automatically, in under a minute.
         </p>
       </header>
 
