@@ -1,3 +1,4 @@
+import { jsonrepair } from "jsonrepair";
 import { buildSystemPrompt, userMessage, type AnalysisResult } from "./prompt";
 import type { ImageTags } from "./captioner";
 import type { CreatorProfile } from "./profile";
@@ -54,7 +55,7 @@ export async function decideStrategy(
         model,
         messages,
         temperature: attempt === 1 ? 0.6 : 0.2, // tighter on retries
-        max_tokens: 1500,
+        max_tokens: 4000, // headroom so the response doesn't get truncated mid-string
         response_format: { type: "json_object" },
       }),
     });
@@ -96,36 +97,48 @@ function composeUserMessage(
 }
 
 /**
- * Parse JSON from an LLM response. Tries multiple repair strategies before
- * giving up so single-character syntax errors don't blow up the whole flow.
+ * Parse JSON from an LLM response. Tries strict → outermost-brace slice →
+ * heuristic repair → jsonrepair (full repair-grammar parser) before giving up.
+ * The last stage handles unescaped quotes inside strings, missing commas,
+ * trailing commas, smart quotes, and recovers truncated outputs by closing
+ * unterminated strings/arrays/objects.
  */
 function extractJson(raw: string): unknown {
   const cleaned = cleanLlmOutput(raw);
 
-  // 1. Strict parse on cleaned output
+  // 1. Strict parse
   try {
     return JSON.parse(cleaned);
-  } catch (e1) {
-    // 2. Try extracting the outermost { ... } block
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start !== -1 && end !== -1 && end > start) {
-      const sliced = cleaned.slice(start, end + 1);
-      try {
-        return JSON.parse(sliced);
-      } catch {
-        // 3. Try repair heuristics on the sliced JSON
-        try {
-          return JSON.parse(repairJson(sliced));
-        } catch (e3) {
-          throw new Error(
-            `JSON parse failed. ${e3 instanceof Error ? e3.message : String(e3)}`
-          );
-        }
-      }
-    }
+  } catch {
+    // ignore — fall through
+  }
+
+  // 2. Slice to outermost braces and try strict again
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  const sliced = start !== -1 && end > start ? cleaned.slice(start, end + 1) : cleaned;
+
+  try {
+    return JSON.parse(sliced);
+  } catch {
+    // ignore
+  }
+
+  // 3. Quick repairs (trailing commas, JS comments)
+  try {
+    return JSON.parse(repairJson(sliced));
+  } catch {
+    // ignore
+  }
+
+  // 4. Full jsonrepair — handles deep errors like unescaped quotes mid-array
+  //    and gracefully closes truncated structures.
+  try {
+    const repaired = jsonrepair(sliced);
+    return JSON.parse(repaired);
+  } catch (e4) {
     throw new Error(
-      `Could not find JSON object in output. ${e1 instanceof Error ? e1.message : String(e1)}`
+      `JSON parse failed after all repair strategies. Last error: ${e4 instanceof Error ? e4.message : String(e4)}. Output head: ${cleaned.slice(0, 120)}…`
     );
   }
 }

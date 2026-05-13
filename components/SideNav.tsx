@@ -135,7 +135,27 @@ export function SideNav({ clerkEnabled, signedIn }: Props) {
                 <span className="side-nav-userlabel">Signed in</span>
               </div>
             ) : (
-              <SignInButton mode="modal" />
+              <SignInButton
+                mode="modal"
+                appearance={{
+                  elements: {
+                    rootBox: { width: "100%" },
+                    button: {
+                      width: "100%",
+                      background: "var(--accent)",
+                      color: "white",
+                      border: 0,
+                      padding: "9px 14px",
+                      borderRadius: "8px",
+                      fontSize: "13.5px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      transition: "background 0.15s",
+                    },
+                  },
+                }}
+              />
             )}
           </div>
         )}
