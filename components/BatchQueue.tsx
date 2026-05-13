@@ -57,45 +57,64 @@ export function BatchQueue({ files, onReset }: { files: File[]; onReset: () => v
     return () => clearInterval(id);
   }, [startTs, running]);
 
+  async function processItem(itemId: string, isRetry: boolean): Promise<void> {
+    const idx = items.findIndex((it) => it.id === itemId);
+    if (idx === -1) return;
+    const file = items[idx].file;
+
+    // Step 1: prep (HEIC → JPEG and resize).
+    setItems((curr) =>
+      curr.map((it) => (it.id === itemId ? { ...it, status: "preparing", phaseStartedAt: Date.now(), error: undefined } : it))
+    );
+    let dataUrl: string;
+    try {
+      dataUrl = await prepImage(file);
+      setItems((curr) =>
+        curr.map((it) => (it.id === itemId ? { ...it, dataUrl, status: "analyzing", phaseStartedAt: Date.now() } : it))
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setItems((curr) => curr.map((it) => (it.id === itemId ? { ...it, status: "error", error: `Couldn't read image: ${msg}` } : it)));
+      if (!isRetry) setErrorCount((c) => c + 1);
+      return;
+    }
+
+    // Step 2: analyze + save to vault
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl: dataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analyze failed");
+      await savePost({ imageDataUrl: dataUrl, analysis: data });
+      setItems((curr) => curr.map((it) => (it.id === itemId ? { ...it, status: "done", result: data } : it)));
+      if (isRetry) {
+        setErrorCount((c) => Math.max(0, c - 1));
+        setDoneCount((c) => c + 1);
+      } else {
+        setDoneCount((c) => c + 1);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setItems((curr) => curr.map((it) => (it.id === itemId ? { ...it, status: "error", error: msg } : it)));
+      if (!isRetry) setErrorCount((c) => c + 1);
+    }
+  }
+
   async function run() {
     setRunning(true);
     setStartTs(Date.now());
     for (let i = 0; i < items.length; i++) {
       if (cancelRef.current) break;
-      const file = items[i].file;
-
-      // Step 1: prep (HEIC → JPEG and resize). This produces the thumbnail.
-      setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "preparing", phaseStartedAt: Date.now() } : it)));
-      let dataUrl: string;
-      try {
-        dataUrl = await prepImage(file);
-        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, dataUrl, status: "analyzing", phaseStartedAt: Date.now() } : it)));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "error", error: `Couldn't read image: ${msg}` } : it)));
-        setErrorCount((c) => c + 1);
-        continue;
-      }
-
-      // Step 2: analyze + save to vault
-      try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageDataUrl: dataUrl }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Analyze failed");
-        await savePost({ imageDataUrl: dataUrl, analysis: data });
-        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "done", result: data } : it)));
-        setDoneCount((c) => c + 1);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, status: "error", error: msg } : it)));
-        setErrorCount((c) => c + 1);
-      }
+      await processItem(items[i].id, false);
     }
     setRunning(false);
+  }
+
+  async function retryItem(itemId: string) {
+    await processItem(itemId, true);
   }
 
   const total = items.length;
@@ -161,6 +180,7 @@ export function BatchQueue({ files, onReset }: { files: File[]; onReset: () => v
             item={it}
             expanded={expandedId === it.id}
             onToggle={() => setExpandedId((cur) => (cur === it.id ? null : it.id))}
+            onRetry={() => retryItem(it.id)}
           />
         ))}
       </div>
@@ -172,10 +192,12 @@ function BatchTile({
   item,
   expanded,
   onToggle,
+  onRetry,
 }: {
   item: Item;
   expanded: boolean;
   onToggle: () => void;
+  onRetry: () => void;
 }) {
   const platform = item.result?.primary_recommendation?.platform;
   const rating = item.result?.content_rating;
@@ -252,6 +274,21 @@ function BatchTile({
           )}
         </div>
       </button>
+
+      {item.status === "error" && (
+        <div className="batch-tile-retry-row">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry();
+            }}
+          >
+            ↻ Retry this image
+          </button>
+        </div>
+      )}
 
       {expanded && item.result && <BatchTileExpanded result={item.result} />}
     </div>

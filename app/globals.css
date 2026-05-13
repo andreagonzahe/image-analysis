@@ -2769,6 +2769,12 @@ h1.title {
   line-height: 1.4;
 }
 
+.batch-tile-retry-row {
+  padding: 0 14px 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* Per-tile live progress (replaces "Analyzing…" string) */
 .tile-progress {
   display: flex;
