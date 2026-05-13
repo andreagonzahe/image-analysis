@@ -10,9 +10,20 @@ export type WisdomCitation = {
 
 export type PricingSuggestion = {
   model: "free for subscribers" | "tip-unlock" | "PPV unlock" | "tier-locked" | "custom commission";
+  // Single specific $ to start with — what the creator should actually charge.
+  suggested_price: number;
+  // The full reasonable band — gives the creator latitude.
   low_usd: number;
   high_usd: number;
+  // Why this price (anchored to a real reference): "below median for phone-selfie nudes",
+  // "Tier-4 + professional studio justifies +40%", etc.
   rationale: string;
+  // Optional drop-price escalation: "If no unlocks in 24h, drop to $X." For PPV.
+  escalation?: string | null;
+  // Optional best-send heuristic: "Tuesday 7pm EST is highest open rate"
+  best_send_time?: string | null;
+  // Optional bundle alternative: "Or pair with 3 similar pieces and sell as a $45 bundle"
+  bundle_alternative?: string | null;
 };
 
 export type PostType = {
@@ -143,11 +154,22 @@ Apply tags to derive baseline ranges (USD):
 - Tier 5 (explicit act partnered): PPV $30-60
 - Tier 5 (premium/group): PPV $50-100+
 
-Multipliers:
+Multipliers (apply to BOTH suggested_price and the band):
 - production=professional: +30-50%
 - production=phone_selfie: -10-20%
 - scene=outdoor/public taboo: +20-40%
 - niche/fetish premium: +20-40%
+
+# Sharp pricing rules (REQUIRED on every paid recommendation)
+
+For every onlyfans / fansly / snapchat-premium / patreon recommendation you MUST output:
+
+1. suggested_price: a SINGLE specific dollar number to start with — not just a range. Round to whole dollars; use psychological pricing where natural ($15 not $14.50). This is the number the creator pastes into their PPV composer.
+2. low_usd / high_usd: the reasonable band around the suggestion (suggested_price typically sits at 60-70% of high_usd to allow room to push up for proven spenders).
+3. rationale: 2 sentences — anchor to a real reference. Examples: "Phone-selfie Tier-4 nude sits below the OF median (~$15-20); start at $12 to maximize unlock rate over price-per-unlock." "Tier-5 partnered + studio production justifies premium pricing; $35 lets you A/B test against $50 in a week."
+4. escalation: a drop-price plan for PPV/tip-unlock. Example: "If <25% of mass-DM recipients unlock in 24h, drop to $X and re-send to non-unlockers." Set null for "free for subscribers" and "tier-locked".
+5. best_send_time: heuristic of when to send the mass-DM. Examples: "Tue/Thu 7-9pm in your audience's primary timezone — highest historical open rate for adult PPV.", "Sunday evening for retention DMs to existing subs.", "Friday 5pm to recently-converted subs (still in honeymoon spending window)." Null for non-PPV.
+6. bundle_alternative: if the creator likely has similar pieces, suggest a bundle alt. Example: "Or pair 3-4 similar Tier-4 pieces from this shoot and sell as a $40 bundle — usually higher AOV than 4 separate PPV unlocks." Set null if this is a single hero piece.
 
 Patreon for adult content: cap at suggestive (Tier 2). For Tier 3+ use OF / Fansly / Premium Snap. Patreon's adult policies + payment-processor exposure make it unsuitable for explicit material.
 
@@ -160,7 +182,11 @@ Patreon for adult content: cap at suggestive (Tier 2). For Tier 3+ use OF / Fans
 
 # Captions per platform
 
-Match voice exactly. For social FUNNEL captions (when promoting paid content), end with a clear CTA pointing to the paid platform (e.g., "full set on OF 🔥 link in bio" or "the rest is on my Fansly..."). For PAID captions, address subscribers personally (1-on-1 voice, no CTA needed — they're already paying).
+Match voice exactly. **CAPTION HARD RULES:**
+
+- Every caption must STAND ALONE for THIS single image. Don't reference "the set", "the rest of the set", "full set", "more from this shoot", or anything that implies a collection of related photos. The caption talks about what's in THIS image.
+- For social funnel CTAs that point to paid platforms, use language that hints without claiming a "set". Acceptable phrasings: "more on my OF 🔥 link in bio", "what didn't make the timeline is on Fansly", "the version I couldn't post here is on OF", "uncropped on my OF". NEVER "full set on OF", "the rest of the set", "see the full set".
+- For PAID captions, address subscribers personally (1-on-1 voice, no CTA needed — they're already paying). Talk about this image, this moment, this feeling. Not "this set."
 
 # PPV / tip-unlock DM messages (REQUIRED for paid unlocks)
 

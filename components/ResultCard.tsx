@@ -246,20 +246,49 @@ function PpvDmMessage({ message }: { message: string }) {
 }
 
 function PriceTag({ pricing }: { pricing: PricingSuggestion }) {
-  const range =
-    pricing.low_usd === pricing.high_usd
-      ? pricing.low_usd === 0
-        ? "Free for subscribers"
-        : `$${pricing.low_usd}`
-      : `$${pricing.low_usd}–$${pricing.high_usd}`;
+  const suggested = typeof pricing.suggested_price === "number" ? pricing.suggested_price : null;
+  const showBand = suggested !== null && (pricing.low_usd !== suggested || pricing.high_usd !== suggested);
+  const isFree = (suggested ?? pricing.low_usd) === 0 && pricing.high_usd === 0;
+
   return (
     <div className="pricing">
       <div className="pricing-header">
-        <span className="pricing-label">Suggested price</span>
-        <span className="pricing-range">{range}</span>
+        <span className="pricing-label">Start with</span>
+        <span className="pricing-range">
+          {isFree
+            ? "Free for subscribers"
+            : suggested !== null
+              ? `$${suggested}`
+              : pricing.low_usd === pricing.high_usd
+                ? `$${pricing.low_usd}`
+                : `$${pricing.low_usd}–$${pricing.high_usd}`}
+        </span>
       </div>
       <div className="pricing-model">{pricing.model}</div>
+      {showBand && !isFree && (
+        <div className="pricing-band">
+          Reasonable band: ${pricing.low_usd}–${pricing.high_usd}
+        </div>
+      )}
       <p className="pricing-rationale">{pricing.rationale}</p>
+      {pricing.escalation && (
+        <div className="pricing-row">
+          <span className="pricing-row-label">If it doesn&rsquo;t unlock:</span>
+          <span className="pricing-row-value">{pricing.escalation}</span>
+        </div>
+      )}
+      {pricing.best_send_time && (
+        <div className="pricing-row">
+          <span className="pricing-row-label">Best send time:</span>
+          <span className="pricing-row-value">{pricing.best_send_time}</span>
+        </div>
+      )}
+      {pricing.bundle_alternative && (
+        <div className="pricing-row pricing-row-alt">
+          <span className="pricing-row-label">Bundle alternative:</span>
+          <span className="pricing-row-value">{pricing.bundle_alternative}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -133,7 +133,7 @@ function enforcePolicy(strategy: AnalysisResult, verdict: "nsfw" | "normal", tag
 
     const existingDontPost = new Set(fixed.do_not_post.map((d) => d.platform));
     const teaserHint = fixed.funnel_strategy?.teaser_variant_needed
-      ? ` Instead: shoot a teaser variant (${fixed.funnel_strategy.teaser_variant_needed}) and post THAT here with a 'full set on ${platformDisplayName(fixed.primary_recommendation.platform)}' caption.`
+      ? ` Instead: shoot a teaser variant (${fixed.funnel_strategy.teaser_variant_needed}) and post THAT here with a 'more on my ${platformDisplayName(fixed.primary_recommendation.platform)}' caption.`
       : ` Instead: shoot a Tier-2 lingerie/implied teaser variant for social, and keep this image exclusive to ${platformDisplayName(fixed.primary_recommendation.platform)}.`;
 
     for (const id of FREE_PLATFORMS) {

@@ -26,7 +26,7 @@ export type PlatformPlay = {
   what_to_post: string;        // 1-2 sentences describing what to actually post
   caption: string;              // platform-tuned caption
   cadence: string;              // e.g. "Tuesday + Friday, 2 per week"
-  cta?: string;                 // optional, e.g. "full set on OF 🔥"
+  cta?: string;                 // optional, e.g. "more on my OF 🔥 link in bio"
   est_value: string;            // e.g. "Free post — ~5K reach", "$15-25 PPV unlock"
 };
 
@@ -89,6 +89,7 @@ Output ONLY this JSON, no prose, no fences:
 4. Use the creator's actively-posted platforms first when ranking.
 5. The weekly revenue estimate should be honest. If they have no paid audience or this is Tier 1, estimate $0-X with rationale.
 6. Captions must match platform voice (Instagram: warm + emoji; X: terse + link cue; Reddit: descriptive title; OF: intimate direct-address; etc.).
+7. **Captions stand alone for this single image** — NEVER use "full set", "the set", "rest of the set", or any phrasing that implies a collection. Acceptable CTAs: "more on my OF 🔥 link in bio", "what didn't make the timeline is on Fansly", "uncropped on OF". The image speaks for itself.
 
 # Available platforms
 ${platformBlock}`;
