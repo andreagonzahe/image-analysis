@@ -7,6 +7,12 @@ import { PLATFORMS } from "@/lib/platforms";
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 const platformComposeUrl = (id: string) => PLATFORMS.find((p) => p.id === id)?.composeUrl;
 
+type VaultMatch = {
+  vault_id: string;
+  image_url: string | null;
+  why: string;
+};
+
 type PlatformPlay = {
   platform: string;
   role: "post-as-is" | "shoot-teaser-variant" | "skip";
@@ -15,6 +21,7 @@ type PlatformPlay = {
   cadence: string;
   cta?: string;
   est_value: string;
+  vault_matches?: VaultMatch[];
 };
 
 type Plan = {
@@ -144,6 +151,31 @@ function PlayCard({ play, isHero }: { play: PlatformPlay; isHero: boolean }) {
       </div>
 
       <p className="play-card-what">{play.what_to_post}</p>
+
+      {play.role === "shoot-teaser-variant" && play.vault_matches && play.vault_matches.length > 0 && (
+        <div className="play-card-vault-matches">
+          <span className="play-card-vault-label">
+            Or use one of these from your vault:
+          </span>
+          <div className="play-card-vault-row">
+            {play.vault_matches.map((m) => (
+              <a
+                key={m.vault_id}
+                className="play-card-vault-thumb"
+                href={`/vault?focus=${encodeURIComponent(m.vault_id)}`}
+                title={m.why}
+              >
+                {m.image_url ? (
+                  <img src={m.image_url} alt={m.why} />
+                ) : (
+                  <span className="play-card-vault-placeholder">no preview</span>
+                )}
+                <span className="play-card-vault-why">{m.why}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {play.role !== "skip" && play.caption && (
         <div className="play-card-caption">
