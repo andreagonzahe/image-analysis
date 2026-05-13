@@ -54,20 +54,43 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageDataUrl: image }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Request failed");
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
+
+    // Up to 3 attempts. Auto-retry only on network errors (fetch throws TypeError
+    // for fetch failed / ERR_NETWORK_CHANGED / ERR_INTERNET_DISCONNECTED).
+    // API-returned errors (500 with a body) surface immediately — those need
+    // a real fix, not a retry.
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageDataUrl: image }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          // Server error — surface immediately, don't loop on real failures
+          setError(`${data.error || "Request failed"} (server returned ${res.status})`);
+          setLoading(false);
+          return;
+        }
+        setResult(data);
+        setLoading(false);
+        return;
+      } catch (err) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        const isNetwork = /failed to fetch|networkerror|network changed|internet disconnected|load failed/i.test(msg);
+        if (!isNetwork || attempt === 3) break;
+        // Wait 2s then 4s before retrying
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+      }
     }
+
+    const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    const isNetwork = /failed to fetch|networkerror|network changed|internet disconnected|load failed/i.test(msg);
+    setError(isNetwork ? "Network blip — your connection dropped mid-request. Check wifi and tap Retry." : msg);
+    setLoading(false);
   };
 
   const reset = () => {
@@ -163,7 +186,21 @@ export default function Home() {
         </>
       )}
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="error-banner error-banner-with-actions">
+          <div>{error}</div>
+          {image && !loading && !result && (
+            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+              <button className="btn btn-primary" onClick={analyze}>
+                ↻ Retry
+              </button>
+              <button className="btn btn-secondary" onClick={reset}>
+                Use a different image
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {result && (
         <div className="result-grid">

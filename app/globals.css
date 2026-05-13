@@ -2087,6 +2087,14 @@ h1.title {
   line-height: 1.55;
 }
 
+.error-banner-with-actions {
+  padding: 16px 18px;
+}
+
+.error-banner-with-actions .btn {
+  font-size: 14px;
+}
+
 /* Disclosure */
 .disclosure {
   margin-top: 14px;
