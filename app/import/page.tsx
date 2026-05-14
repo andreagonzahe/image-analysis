@@ -98,6 +98,22 @@ function ImportPageInner() {
     }
   };
 
+  const disconnect = async () => {
+    if (!confirm("Disconnect Dropbox? You'll need to reconnect to import again.")) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/dropbox/disconnect", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Disconnect failed");
+      setStatus({ ...(status as DropboxStatus), connected: false, account: null });
+      setListing(null);
+      setForecast(null);
+      setPath("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const startImport = async () => {
     if (!forecast || forecast.count === 0) return;
     setSubmitting(true);
@@ -203,8 +219,11 @@ function ImportPageInner() {
           need to stay open — close it and check back later.
         </p>
         {status.account?.email && (
-          <p className="hero-sub" style={{ fontSize: 13, color: "var(--muted)" }}>
+          <p className="hero-sub" style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
             Connected as {status.account.email}
+            <button className="btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }} onClick={disconnect}>
+              Disconnect
+            </button>
           </p>
         )}
       </header>
