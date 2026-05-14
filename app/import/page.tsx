@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SignInButton } from "@clerk/nextjs";
 
 type DropboxStatus = {
   configured: boolean;
@@ -165,8 +166,37 @@ function ImportPageInner() {
       <main>
         <header className="hero">
           <h1 className="title">Bulk import</h1>
-          <p className="hero-sub">Sign in first so we can save the analyses to your account.</p>
+          <p className="hero-sub">
+            Bulk import saves the analyses to your account so they sync across devices.
+            Sign in first — takes 30 seconds.
+          </p>
         </header>
+        <div className="cta-row" style={{ justifyContent: "center", marginTop: 24 }}>
+          <SignInButton
+            mode="modal"
+            forceRedirectUrl="/import"
+            signUpForceRedirectUrl="/import"
+            appearance={{
+              elements: {
+                rootBox: { display: "inline-block" },
+                button: {
+                  background: "var(--accent)",
+                  color: "white",
+                  border: 0,
+                  padding: "12px 22px",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                },
+              },
+            }}
+          />
+          <Link href="/" className="btn btn-secondary">
+            Or analyze a single image without signing in
+          </Link>
+        </div>
       </main>
     );
   }

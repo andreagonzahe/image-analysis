@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { SignInButton } from "@clerk/nextjs";
 import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, updatePostStatus, type MergedPost, type PostStatus } from "@/lib/vault";
 import { PLATFORMS } from "@/lib/platforms";
 
@@ -163,7 +164,26 @@ export default function VaultPage() {
               tags and captions get synced.
             </p>
           </div>
-          <Link href="/sign-in" className="btn btn-primary">Sign in</Link>
+          <SignInButton
+            mode="modal"
+            forceRedirectUrl="/vault"
+            signUpForceRedirectUrl="/vault"
+            appearance={{
+              elements: {
+                button: {
+                  background: "var(--accent)",
+                  color: "white",
+                  border: 0,
+                  padding: "10px 18px",
+                  borderRadius: "9px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                },
+              },
+            }}
+          />
         </div>
       )}
 

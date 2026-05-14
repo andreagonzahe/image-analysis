@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SignInButton } from "@clerk/nextjs";
 import { ProfileSurvey } from "@/components/ProfileSurvey";
 import {
   NICHE_OPTIONS,
@@ -21,14 +22,25 @@ export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
 
   const load = () => {
     setLoading(true);
+    setError(null);
+    setNeedsSignIn(false);
     fetch("/api/profile")
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
+        if (r.status === 401) {
+          setNeedsSignIn(true);
+          return;
+        }
+        if (!r.ok) {
+          setError(data?.error || `Request failed (${r.status})`);
+          return;
+        }
         if (data?.enabled) setProfile((data.profile as CreatorProfile) ?? null);
-        else setError("Profile sync isn't configured (Supabase keys missing).");
+        else setError("Profile sync isn't configured. Add Supabase keys to .env.local to enable cross-device profile sync.");
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -47,6 +59,43 @@ export default function ProfileSettingsPage() {
           <h1 className="title">Your profile</h1>
           <p className="hero-sub">Loading…</p>
         </header>
+      </main>
+    );
+  }
+
+  if (needsSignIn) {
+    return (
+      <main>
+        <header className="how-hero">
+          <h1 className="title">Your profile</h1>
+          <p className="hero-sub">
+            Your creator profile (niche, persona, tone, active platforms) is stored in your account
+            so it syncs across devices. Sign in to set it up — takes 30 seconds.
+          </p>
+        </header>
+        <div className="cta-row" style={{ justifyContent: "center", marginTop: 24 }}>
+          <SignInButton
+            mode="modal"
+            forceRedirectUrl="/settings/profile"
+            signUpForceRedirectUrl="/settings/profile"
+            appearance={{
+              elements: {
+                button: {
+                  background: "var(--accent)",
+                  color: "white",
+                  border: 0,
+                  padding: "12px 22px",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                },
+              },
+            }}
+          />
+          <Link href="/" className="btn btn-secondary">Back to analyzer</Link>
+        </div>
       </main>
     );
   }
