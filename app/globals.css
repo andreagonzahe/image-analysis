@@ -383,6 +383,86 @@ h1.title {
   font-size: 13.5px;
 }
 
+/* "or" divider between Dropzone and the Dropbox CTA */
+.dropzone-alt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 0 16px;
+}
+
+.dropzone-alt-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.dropzone-alt-or {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Dropbox CTA card */
+.dropbox-cta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  text-decoration: none;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--panel) 60%);
+  border: 1px solid rgba(0, 175, 240, 0.3);
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.dropbox-cta:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+.dropbox-cta-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-strong);
+  background: var(--panel);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 175, 240, 0.2);
+}
+
+.dropbox-cta-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropbox-cta-text h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dropbox-cta-text p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.dropbox-cta-arrow {
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
 /* Preview */
 .preview {
   display: grid;
@@ -3140,6 +3220,92 @@ h1.title {
 .folder-arrow {
   color: var(--muted);
   font-size: 14px;
+}
+
+.import-empty {
+  padding: 18px 18px;
+  background: var(--rating-suggestive-bg);
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  border-radius: 10px;
+  margin: 16px 0;
+}
+
+.import-empty-title {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--rating-suggestive);
+}
+
+.import-empty-body {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.import-empty-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.import-empty-list li { margin-bottom: 10px; }
+
+.import-empty-list code,
+.import-pathjump-hint code {
+  background: var(--panel);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+}
+
+.import-pathjump {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.import-pathjump-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.import-pathjump-row {
+  display: flex;
+  gap: 8px;
+}
+
+.import-pathjump-row input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.import-pathjump-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.import-pathjump-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .forecast-title {

@@ -146,6 +146,29 @@ export default function Home() {
       {!image && !preparing && (
         <>
           <Dropzone onFiles={onFiles} onError={setError} />
+
+          <div className="dropzone-alt">
+            <span className="dropzone-alt-line" />
+            <span className="dropzone-alt-or">or</span>
+            <span className="dropzone-alt-line" />
+          </div>
+
+          <Link href="/import" className="card dropbox-cta">
+            <div className="dropbox-cta-icon" aria-hidden>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 2l6 3.75L6 9.5 0 5.75 6 2zm12 0l6 3.75L18 9.5 12 5.75 18 2zM0 13.25L6 9.5l6 3.75L6 17 0 13.25zm18-3.75l6 3.75L18 17l-6-3.75L18 9.5zM6 18.25l6-3.75 6 3.75L12 22l-6-3.75z"/>
+              </svg>
+            </div>
+            <div className="dropbox-cta-text">
+              <h3>Have thousands of photos already?</h3>
+              <p>
+                Connect your Dropbox and let Postwise filter the noise and tag the keepers in the
+                background. You can close the tab while it runs.
+              </p>
+            </div>
+            <span className="dropbox-cta-arrow">→</span>
+          </Link>
+
           <p className="privacy-line">
             <span className="privacy-dot" aria-hidden /> Analyzed on your own Replicate account.
             Vault images live on your own Supabase project when signed in (private bucket, signed URLs).{" "}

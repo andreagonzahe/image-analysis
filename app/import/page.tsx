@@ -46,6 +46,7 @@ function ImportPageInner() {
 
   const [status, setStatus] = useState<DropboxStatus | null>(null);
   const [path, setPath] = useState<string>("");
+  const [pathInput, setPathInput] = useState<string>("");
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [loadingFolder, setLoadingFolder] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -246,10 +247,61 @@ function ImportPageInner() {
             )}
 
             {listing.folders.length === 0 && listing.counts.images === 0 && (
-              <p style={{ color: "var(--muted)", padding: "20px 0" }}>
-                Nothing here. Pick a parent folder.
-              </p>
+              <div className="import-empty">
+                <p className="import-empty-title">This folder is empty.</p>
+                {(!path || path === "/") ? (
+                  <>
+                    <p className="import-empty-body">
+                      Two common reasons your Dropbox root looks empty here:
+                    </p>
+                    <ol className="import-empty-list">
+                      <li>
+                        <strong>App-folder type Dropbox app.</strong> If you picked
+                        <em> &ldquo;App folder&rdquo;</em> when creating the app at dropbox.com/developers/apps,
+                        we can only see <code>Apps/&lt;your-app-name&gt;/</code> — not your whole Dropbox.
+                        Either move some photos into that folder, or recreate the app with
+                        <em> &ldquo;Full Dropbox&rdquo;</em> access (then disconnect + reconnect here).
+                      </li>
+                      <li>
+                        <strong>Your photos are in a subfolder.</strong> If you keep them in
+                        <code>/Photos</code> or <code>/Camera Uploads</code>, type that path below.
+                      </li>
+                    </ol>
+                  </>
+                ) : (
+                  <p className="import-empty-body">
+                    No images or subfolders in <code>{path}</code>. Try a different path.
+                  </p>
+                )}
+              </div>
             )}
+
+            <form
+              className="import-pathjump"
+              onSubmit={(e) => {
+                e.preventDefault();
+                let p = pathInput.trim();
+                if (p && !p.startsWith("/")) p = "/" + p;
+                setPath(p);
+                setPathInput("");
+              }}
+            >
+              <label className="import-pathjump-label">Jump to path</label>
+              <div className="import-pathjump-row">
+                <input
+                  type="text"
+                  value={pathInput}
+                  onChange={(e) => setPathInput(e.target.value)}
+                  placeholder="/Photos/2026"
+                />
+                <button type="submit" className="btn btn-secondary">Go</button>
+              </div>
+              <p className="import-pathjump-hint">
+                Dropbox paths are case-sensitive. Common ones: <code>/Camera Uploads</code>,{" "}
+                <code>/Photos</code>, <code>/Apps</code>.
+              </p>
+            </form>
+
 
             {listing.folders.map((f) => (
               <button key={f.id} className="folder-row" onClick={() => setPath(f.path)}>
