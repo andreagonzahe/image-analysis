@@ -9,6 +9,7 @@ type NavItem = { href: string; label: string; icon: React.ReactNode };
 
 const NAV: NavItem[] = [
   { href: "/", label: "Analyzer", icon: <IconAnalyze /> },
+  { href: "/import", label: "Import", icon: <IconImport /> },
   { href: "/today", label: "Today", icon: <IconCalendar /> },
   { href: "/vault", label: "Vault", icon: <IconVault /> },
   { href: "/strategy", label: "Strategy", icon: <IconFunnel /> },
@@ -165,6 +166,16 @@ export function SideNav({ clerkEnabled, signedIn }: Props) {
 }
 
 /* -- icons (inline SVG to avoid extra deps) -- */
+
+function IconImport() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
 
 function IconAnalyze() {
   return (
