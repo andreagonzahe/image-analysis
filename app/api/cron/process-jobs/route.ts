@@ -13,6 +13,7 @@ import { classifyNsfw } from "@/lib/nsfw";
 import { captionImage } from "@/lib/captioner";
 import { decideStrategy } from "@/lib/strategist";
 import { fetchProfile } from "@/lib/profile-server";
+import { prepImageForReplicate } from "@/lib/image-prep-server";
 import { PLATFORMS } from "@/lib/platforms";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
@@ -160,7 +161,10 @@ async function resolveImageUrl(userId: string, input: Record<string, unknown>): 
 
 async function runPrefilter(job: Job): Promise<void> {
   const url = await resolveImageUrl(job.user_id, job.input);
-  const verdict = await prefilterImage(url, job.user_id);
+  // Convert HEIC/HEIF to JPEG so Replicate's PIL can decode it. Other
+  // formats pass through untouched (no extra fetch, no extra cost).
+  const ready = await prepImageForReplicate(url, String(job.input.name ?? ""));
+  const verdict = await prefilterImage(ready, job.user_id);
 
   if (!verdict.keep) {
     await markJobSkipped(job.id, `${verdict.category}: ${verdict.reason}`);
@@ -188,10 +192,13 @@ async function runPrefilter(job: Job): Promise<void> {
 
 async function runAnalyze(job: Job): Promise<void> {
   const url = await resolveImageUrl(job.user_id, job.input);
+  // Convert HEIC once and reuse across all three downstream Replicate calls.
+  // Avoids fetching + decoding the source three times when the file is HEIC.
+  const ready = await prepImageForReplicate(url, String(job.input.name ?? ""));
 
   const [nsfw, captioned, profile] = await Promise.all([
-    classifyNsfw(url, job.user_id),
-    captionImage(url, job.user_id),
+    classifyNsfw(ready, job.user_id),
+    captionImage(ready, job.user_id),
     fetchProfile(),
   ]);
 
