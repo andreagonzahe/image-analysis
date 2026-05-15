@@ -104,6 +104,36 @@ export async function enqueueJobs(
   }
 }
 
+// A job left in "processing" longer than this is presumed crashed (the
+// worker died mid-execution) and gets reset to "pending" on the next claim.
+// Worker maxDuration is 60s, so 5 min is generous — a real long-running job
+// would have failed-out by now.
+const STUCK_JOB_RESET_MS = 5 * 60 * 1000;
+
+/**
+ * Reset jobs that have been stuck in "processing" for too long back to
+ * "pending" so the queue can re-claim them. Runs at the start of claimJobs
+ * — keeps the queue self-healing across worker crashes / dev-server
+ * restarts. Returns the number of jobs revived.
+ */
+export async function resetStuckJobs(): Promise<number> {
+  const supabase = requireSupabase();
+  const cutoff = new Date(Date.now() - STUCK_JOB_RESET_MS).toISOString();
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ status: "pending", started_at: null })
+    .eq("status", "processing")
+    .lt("started_at", cutoff)
+    .select("id");
+  if (error) {
+    console.warn("[jobs] resetStuckJobs failed (non-fatal):", error.message);
+    return 0;
+  }
+  const n = data?.length ?? 0;
+  if (n > 0) console.log(`[jobs] revived ${n} stuck job(s)`);
+  return n;
+}
+
 /**
  * Atomically claim up to `limit` pending jobs. Marks them processing and
  * returns the rows. Uses a single SQL update to avoid races between concurrent
@@ -111,6 +141,10 @@ export async function enqueueJobs(
  */
 export async function claimJobs(limit: number): Promise<Job[]> {
   const supabase = requireSupabase();
+
+  // Self-heal: jobs left in "processing" from a crashed worker get
+  // released back to "pending" before we look for new work.
+  await resetStuckJobs();
 
   // Pull the IDs of the next batch of work, then update them in a single shot.
   // We do it in two steps because the Supabase JS client doesn't expose

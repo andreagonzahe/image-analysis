@@ -33,6 +33,23 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
   const { id } = use(params);
   const [data, setData] = useState<BatchStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryMsg, setRetryMsg] = useState<string | null>(null);
+
+  const retryAll = async () => {
+    setRetrying(true);
+    setRetryMsg(null);
+    try {
+      const res = await fetch(`/api/jobs/batch/${id}/retry`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Retry failed");
+      setRetryMsg(`Reset ${json.reset} job(s). They'll start processing again now.`);
+    } catch (e) {
+      setRetryMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +74,44 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
       clearInterval(id_);
     };
   }, [id]);
+
+  // Client-side cron trigger. In production Vercel Cron hits the worker
+  // endpoint every minute. Locally there's nothing scheduling it, so the
+  // queue would just sit pending. While this status page is open we
+  // chain-fire ticks: as soon as one POST returns we kick off the next.
+  // Each tick processes up to 5 jobs in parallel server-side, so a 75-job
+  // batch typically drains in 2-4 minutes. Backs off to a 6s cooldown when
+  // the queue is empty, so we don't hammer the endpoint after the import
+  // finishes (the page might stay open for a while).
+  useEffect(() => {
+    if (!data) return;
+    if (data.batch.status !== "running") return;
+
+    let stopped = false;
+    let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const res = await fetch("/api/cron/process-jobs", { method: "POST" });
+        const body = await res.json().catch(() => ({}));
+        if (stopped) return;
+        // If the queue is empty, slow down — wait 6s before checking again.
+        // Otherwise loop immediately so we drain as fast as the worker can.
+        const idle =
+          body?.message === "No pending jobs." || (body?.processed ?? 0) === 0;
+        cooldownTimer = setTimeout(tick, idle ? 6000 : 200);
+      } catch {
+        // Don't kill the loop on transient errors — try again in 6s.
+        if (!stopped) cooldownTimer = setTimeout(tick, 6000);
+      }
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+    };
+  }, [data?.batch.status, id]);
 
   if (error) {
     return (
@@ -182,10 +237,25 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      <div className="cta-row" style={{ marginTop: 24 }}>
+      <div className="cta-row" style={{ marginTop: 24, flexWrap: "wrap" }}>
         <Link href="/vault" className="btn btn-primary">Open vault</Link>
         <Link href="/import" className="btn btn-secondary">Import another folder</Link>
+        {(remaining > 0 || failed > 0) && (
+          <button
+            className="btn btn-secondary"
+            onClick={retryAll}
+            disabled={retrying}
+            title="If your import froze (e.g. Dropbox was disconnected when it ran), this resets every job in this batch and starts processing again."
+          >
+            {retrying ? "Resetting…" : "Retry stuck jobs"}
+          </button>
+        )}
       </div>
+      {retryMsg && (
+        <p style={{ marginTop: 12, fontSize: 13.5, color: "var(--muted-strong)" }}>
+          {retryMsg}
+        </p>
+      )}
     </main>
   );
 }
