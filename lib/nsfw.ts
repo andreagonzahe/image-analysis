@@ -1,3 +1,6 @@
+import { recordUsage } from "./usage";
+import { costForReplicateRuntime } from "./pricing";
+
 const REPLICATE_API = "https://api.replicate.com/v1";
 const MODEL_SLUG = "falcons-ai/nsfw_image_detection";
 
@@ -6,12 +9,13 @@ export type NsfwVerdict = {
   raw: string;
 };
 
-export async function classifyNsfw(imageDataUrl: string): Promise<NsfwVerdict> {
+export async function classifyNsfw(imageDataUrl: string, userId?: string | null): Promise<NsfwVerdict> {
   const token = process.env.REPLICATE_API_TOKEN;
   if (!token) throw new Error("REPLICATE_API_TOKEN is not set.");
 
   const version = await getLatestVersion(token);
 
+  const wallStart = Date.now();
   const res = await postWithBackoff(
     `${REPLICATE_API}/predictions`,
     {
@@ -37,10 +41,27 @@ export async function classifyNsfw(imageDataUrl: string): Promise<NsfwVerdict> {
     });
     prediction = await poll.json();
   }
+  const wallMs = Date.now() - wallStart;
 
   if (prediction.status !== "succeeded") {
     throw new Error(`NSFW classifier ${prediction.status}: ${prediction.error || "unknown"}`);
   }
+
+  // Replicate sometimes includes predict_time (sec) in metrics. Fall back to
+  // wall-clock if it's missing — wall is an overestimate but never zero.
+  const predictTimeSec: number =
+    typeof prediction?.metrics?.predict_time === "number"
+      ? prediction.metrics.predict_time
+      : wallMs / 1000;
+  recordUsage({
+    user_id: userId ?? null,
+    provider: "replicate",
+    model: MODEL_SLUG,
+    op: "nsfw",
+    runtime_ms: Math.round(predictTimeSec * 1000),
+    cost_usd: costForReplicateRuntime(MODEL_SLUG, predictTimeSec),
+    metadata: { prediction_id: prediction.id ?? null },
+  });
 
   const raw = String(prediction.output ?? "").toLowerCase().trim();
   const verdict: NsfwVerdict["verdict"] = raw.includes("nsfw") ? "nsfw" : "normal";

@@ -4,6 +4,7 @@ import { PLATFORMS } from "@/lib/platforms";
 import type { ImageTags } from "@/lib/captioner";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
 import { fetchProfile } from "@/lib/profile-server";
+import { requireUserId, isAuthEnabled } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,6 +22,14 @@ type ReTierRequest = {
 
 export async function POST(req: Request) {
   try {
+    let userId: string | null = null;
+    if (isAuthEnabled()) {
+      userId = await requireUserId();
+      if (!userId) {
+        return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+      }
+    }
+
     const body = (await req.json()) as ReTierRequest;
     if (!body?.description || !body?.tags || !body?.forced_tier) {
       return NextResponse.json({ error: "description, tags, and forced_tier required" }, { status: 400 });
@@ -35,7 +44,9 @@ export async function POST(req: Request) {
       body.description + `\n\nUSER OVERRIDE: This image is content_tier ${body.forced_tier}. Route accordingly.`,
       body.nsfw_verdict,
       body.tags,
-      profile
+      profile,
+      userId,
+      "retier"
     );
 
     const enforced = enforceForTier(strategy, body.forced_tier);

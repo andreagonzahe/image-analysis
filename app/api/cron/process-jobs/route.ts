@@ -111,7 +111,7 @@ async function resolveImageUrl(userId: string, input: Record<string, unknown>): 
 
 async function runPrefilter(job: Job): Promise<void> {
   const url = await resolveImageUrl(job.user_id, job.input);
-  const verdict = await prefilterImage(url);
+  const verdict = await prefilterImage(url, job.user_id);
 
   if (!verdict.keep) {
     await markJobSkipped(job.id, `${verdict.category}: ${verdict.reason}`);
@@ -141,12 +141,12 @@ async function runAnalyze(job: Job): Promise<void> {
   const url = await resolveImageUrl(job.user_id, job.input);
 
   const [nsfw, captioned, profile] = await Promise.all([
-    classifyNsfw(url),
-    captionImage(url),
+    classifyNsfw(url, job.user_id),
+    captionImage(url, job.user_id),
     fetchProfile(),
   ]);
 
-  const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile);
+  const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, job.user_id);
   const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
 
   // Persist to vault. For Dropbox-sourced items we record the external id

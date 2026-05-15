@@ -3,6 +3,8 @@ import { buildSystemPrompt, userMessage, type AnalysisResult } from "./prompt";
 import type { ImageTags } from "./captioner";
 import type { CreatorProfile } from "./profile";
 import { profileSummaryForPrompt } from "./profile";
+import { recordUsage, type UsageOp } from "./usage";
+import { costForTogetherCall } from "./pricing";
 
 const TOGETHER_URL = "https://api.together.xyz/v1/chat/completions";
 const DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
@@ -12,7 +14,9 @@ export async function decideStrategy(
   description: string,
   nsfwVerdict: "nsfw" | "normal",
   tags: ImageTags,
-  profile?: CreatorProfile | null
+  profile?: CreatorProfile | null,
+  userId?: string | null,
+  op: UsageOp = "strategist"
 ): Promise<AnalysisResult> {
   const apiKey = process.env.TOGETHER_API_KEY;
   if (!apiKey) {
@@ -67,6 +71,22 @@ export async function decideStrategy(
 
     const body = await res.json();
     const content: string | undefined = body?.choices?.[0]?.message?.content;
+
+    // Log cost for THIS attempt regardless of whether parsing succeeds —
+    // we already paid for the inference.
+    const promptTokens: number = Number(body?.usage?.prompt_tokens ?? 0);
+    const completionTokens: number = Number(body?.usage?.completion_tokens ?? 0);
+    recordUsage({
+      user_id: userId ?? null,
+      provider: "together",
+      model,
+      op,
+      input_tokens: promptTokens,
+      output_tokens: completionTokens,
+      cost_usd: costForTogetherCall(model, promptTokens, completionTokens),
+      metadata: { attempt, max_attempts: MAX_ATTEMPTS },
+    });
+
     if (!content) {
       throw new Error("Empty response from strategist model");
     }

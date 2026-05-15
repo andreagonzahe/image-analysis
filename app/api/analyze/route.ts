@@ -5,6 +5,7 @@ import { decideStrategy } from "@/lib/strategist";
 import { PLATFORMS } from "@/lib/platforms";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
 import { fetchProfile } from "@/lib/profile-server";
+import { requireUserId, isAuthEnabled } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,6 +18,19 @@ const NUDITY_ATTIRE = new Set(["topless", "partial_nude", "fully_nude"]);
 
 export async function POST(req: Request) {
   try {
+    // Auth gate: if Clerk is enabled, require sign-in + allowlist before
+    // running ANY paid inference. This is the main token-protection chokepoint.
+    let userId: string | null = null;
+    if (isAuthEnabled()) {
+      userId = await requireUserId();
+      if (!userId) {
+        return NextResponse.json(
+          { error: "Sign in required to run analysis." },
+          { status: 401 }
+        );
+      }
+    }
+
     const { imageDataUrl } = await req.json();
     if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) {
       return NextResponse.json({ error: "imageDataUrl must be a data: URL with an image MIME type" }, { status: 400 });
@@ -24,12 +38,12 @@ export async function POST(req: Request) {
 
     // Run NSFW classifier, captioner, and profile fetch in parallel.
     const [nsfw, captioned, profile] = await Promise.all([
-      classifyNsfw(imageDataUrl),
-      captionImage(imageDataUrl),
+      classifyNsfw(imageDataUrl, userId),
+      captionImage(imageDataUrl, userId),
       fetchProfile(),
     ]);
 
-    const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile);
+    const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, userId);
 
     const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
 

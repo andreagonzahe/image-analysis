@@ -3,6 +3,9 @@ import { PLATFORMS } from "@/lib/platforms";
 import type { ImageTags } from "@/lib/captioner";
 import { fetchProfile } from "@/lib/profile-server";
 import { profileSummaryForPrompt } from "@/lib/profile";
+import { requireUserId, isAuthEnabled } from "@/lib/auth";
+import { recordUsage } from "@/lib/usage";
+import { costForTogetherCall } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -20,6 +23,14 @@ type RewriteRequest = {
 
 export async function POST(req: Request) {
   try {
+    let userId: string | null = null;
+    if (isAuthEnabled()) {
+      userId = await requireUserId();
+      if (!userId) {
+        return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+      }
+    }
+
     const body = (await req.json()) as RewriteRequest;
     const platform = PLATFORMS.find((p) => p.id === body.platform);
     if (!platform) {
@@ -87,6 +98,19 @@ Write a new caption now. Output ONLY the caption text.`;
     const data = await res.json();
     let raw: string = data?.choices?.[0]?.message?.content ?? "";
     raw = raw.trim().replace(/^["']|["']$/g, "");
+
+    const promptTokens = Number(data?.usage?.prompt_tokens ?? 0);
+    const completionTokens = Number(data?.usage?.completion_tokens ?? 0);
+    recordUsage({
+      user_id: userId,
+      provider: "together",
+      model,
+      op: "rewrite-caption",
+      input_tokens: promptTokens,
+      output_tokens: completionTokens,
+      cost_usd: costForTogetherCall(model, promptTokens, completionTokens),
+      metadata: { platform: body.platform },
+    });
 
     return NextResponse.json({ caption: raw });
   } catch (err) {

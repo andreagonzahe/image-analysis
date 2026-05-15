@@ -1,3 +1,6 @@
+import { recordUsage } from "./usage";
+import { costForReplicateRuntime } from "./pricing";
+
 const REPLICATE_API = "https://api.replicate.com/v1";
 
 export type ImageTags = {
@@ -82,7 +85,7 @@ Only list parts where SKIN is uncovered and physically visible. "cleavage" can b
 
 Output the JSON now.`;
 
-export async function captionImage(imageDataUrl: string): Promise<CaptionResult> {
+export async function captionImage(imageDataUrl: string, userId?: string | null): Promise<CaptionResult> {
   const token = process.env.REPLICATE_API_TOKEN;
   const modelSlug = process.env.CAPTIONER_MODEL || process.env.JOY_CAPTION_MODEL;
   if (!token) {
@@ -94,6 +97,7 @@ export async function captionImage(imageDataUrl: string): Promise<CaptionResult>
 
   const latestVersion = await getLatestVersion(modelSlug, token);
 
+  const wallStart = Date.now();
   const createRes = await postWithBackoff(
     `${REPLICATE_API}/predictions`,
     {
@@ -126,10 +130,25 @@ export async function captionImage(imageDataUrl: string): Promise<CaptionResult>
     if (!pollRes.ok) throw new Error(`Replicate poll failed (${pollRes.status})`);
     prediction = await pollRes.json();
   }
+  const wallMs = Date.now() - wallStart;
 
   if (prediction.status !== "succeeded") {
     throw new Error(`Captioner ${prediction.status}: ${prediction.error || "unknown error"}`);
   }
+
+  const predictTimeSec: number =
+    typeof prediction?.metrics?.predict_time === "number"
+      ? prediction.metrics.predict_time
+      : wallMs / 1000;
+  recordUsage({
+    user_id: userId ?? null,
+    provider: "replicate",
+    model: modelSlug,
+    op: "captioner",
+    runtime_ms: Math.round(predictTimeSec * 1000),
+    cost_usd: costForReplicateRuntime(modelSlug, predictTimeSec),
+    metadata: { prediction_id: prediction.id ?? null },
+  });
 
   const raw = Array.isArray(prediction.output) ? prediction.output.join("").trim() : String(prediction.output ?? "").trim();
   return parseTaggedOutput(raw);

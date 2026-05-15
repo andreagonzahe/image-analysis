@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { AgeGate } from "@/components/AgeGate";
 import { ProfileSurvey } from "@/components/ProfileSurvey";
 import { SideNav } from "@/components/SideNav";
+import { isAdminUser } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,10 +18,12 @@ const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 async function Shell({ children }: { children: React.ReactNode }) {
   let signedIn = false;
+  let isAdmin = false;
   if (CLERK_ENABLED) {
     try {
       const { userId } = await auth();
       signedIn = Boolean(userId);
+      if (userId) isAdmin = await isAdminUser(userId);
     } catch {
       signedIn = false;
     }
@@ -32,7 +35,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
         <AgeGate />
         {CLERK_ENABLED && signedIn && <ProfileSurvey />}
         <div className="app-shell">
-          <SideNav clerkEnabled={CLERK_ENABLED} signedIn={signedIn} />
+          <SideNav clerkEnabled={CLERK_ENABLED} signedIn={signedIn} isAdmin={isAdmin} />
           <div className="main-column">
             {children}
             <footer className="footer">

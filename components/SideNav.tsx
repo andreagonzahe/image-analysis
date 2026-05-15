@@ -20,6 +20,10 @@ const ACCOUNT: NavItem[] = [
   { href: "/settings/profile", label: "Profile", icon: <IconUser /> },
 ];
 
+const ADMIN: NavItem[] = [
+  { href: "/settings/billing", label: "Billing", icon: <IconBilling /> },
+];
+
 const LEGAL: NavItem[] = [
   { href: "/terms", label: "Terms", icon: null as unknown as React.ReactNode },
   { href: "/privacy", label: "Privacy", icon: null as unknown as React.ReactNode },
@@ -29,9 +33,10 @@ const LEGAL: NavItem[] = [
 type Props = {
   clerkEnabled: boolean;
   signedIn: boolean;
+  isAdmin?: boolean;
 };
 
-export function SideNav({ clerkEnabled, signedIn }: Props) {
+export function SideNav({ clerkEnabled, signedIn, isAdmin }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -130,6 +135,18 @@ export function SideNav({ clerkEnabled, signedIn }: Props) {
           <nav className="side-nav-section">
             <p className="side-nav-section-label">Account</p>
             {ACCOUNT.map((n) => (
+              <Link key={n.href} href={n.href} className={linkClass(n.href)}>
+                <span className="side-nav-icon">{n.icon}</span>
+                <span>{n.label}</span>
+              </Link>
+            ))}
+          </nav>
+        )}
+
+        {clerkEnabled && signedIn && isAdmin && (
+          <nav className="side-nav-section">
+            <p className="side-nav-section-label">Admin</p>
+            {ADMIN.map((n) => (
               <Link key={n.href} href={n.href} className={linkClass(n.href)}>
                 <span className="side-nav-icon">{n.icon}</span>
                 <span>{n.label}</span>
@@ -244,6 +261,15 @@ function IconUser() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+function IconBilling() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+      <line x1="6" y1="15" x2="10" y2="15" />
     </svg>
   );
 }

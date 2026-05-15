@@ -3,8 +3,10 @@ import { PLATFORMS } from "@/lib/platforms";
 import { fetchProfile } from "@/lib/profile-server";
 import { profileSummaryForPrompt } from "@/lib/profile";
 import { FRAMEWORK_PROMPT_SUMMARY } from "@/lib/creator-framework";
-import { requireUserId } from "@/lib/auth";
+import { requireUserId, isAuthEnabled } from "@/lib/auth";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
+import { recordUsage } from "@/lib/usage";
+import { costForTogetherCall } from "@/lib/pricing";
 import type { ImageTags } from "@/lib/captioner";
 import type { ContentTier } from "@/lib/prompt";
 
@@ -62,6 +64,14 @@ type VaultCandidate = {
 
 export async function POST(req: Request) {
   try {
+    let userId: string | null = null;
+    if (isAuthEnabled()) {
+      userId = await requireUserId();
+      if (!userId) {
+        return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+      }
+    }
+
     const body = (await req.json()) as FunnelPlanRequest;
     if (!body?.description || !body?.tags || !body?.primary_platform) {
       return NextResponse.json({ error: "description, tags, primary_platform required" }, { status: 400 });
@@ -175,6 +185,19 @@ Produce the full weekly funnel plan now. Output ONLY the JSON.`;
 
     const data = await res.json();
     const content: string | undefined = data?.choices?.[0]?.message?.content;
+
+    const promptTokens = Number(data?.usage?.prompt_tokens ?? 0);
+    const completionTokens = Number(data?.usage?.completion_tokens ?? 0);
+    recordUsage({
+      user_id: userId,
+      provider: "together",
+      model,
+      op: "funnel-plan",
+      input_tokens: promptTokens,
+      output_tokens: completionTokens,
+      cost_usd: costForTogetherCall(model, promptTokens, completionTokens),
+    });
+
     if (!content) {
       return NextResponse.json({ error: "Empty response" }, { status: 500 });
     }

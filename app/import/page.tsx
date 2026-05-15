@@ -241,16 +241,17 @@ function ImportPageInner() {
     <main>
       <header className="hero">
         <h1 className="title">
-          Bulk <span className="title-accent">import</span>
+          Import from <span className="title-accent">Dropbox</span>
         </h1>
         <p className="hero-sub">
-          Pick a Dropbox folder. We&rsquo;ll filter out screenshots / receipts / non-creator-content
-          first (cheap pass), then deep-tag the keepers in the background. Your browser doesn&rsquo;t
-          need to stay open — close it and check back later.
+          Point us at the folder where your photos live. We&rsquo;ll skip past
+          screenshots, receipts, and random non-content photos automatically,
+          then analyze and sort the ones worth keeping. You can close this tab —
+          everything runs in the background and your vault will be ready when you check back.
         </p>
         {status.account?.email && (
           <p className="hero-sub" style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            Connected as {status.account.email}
+            Connected to {status.account.email}
             <button className="btn-ghost" style={{ fontSize: 12, padding: "3px 10px" }} onClick={disconnect}>
               Disconnect
             </button>
@@ -262,7 +263,7 @@ function ImportPageInner() {
 
       <div className="card">
         <div className="import-breadcrumbs">
-          <button className="btn-ghost" onClick={() => setPath("")}>~ root</button>
+          <button className="btn-ghost" onClick={() => setPath("")}>Your Dropbox</button>
           {breadcrumbs.map((b, i) => (
             <span key={i} className="import-crumb">
               <span className="import-crumb-sep">/</span>
@@ -280,46 +281,47 @@ function ImportPageInner() {
             <div className="import-counts">
               <div>
                 <span className="import-count-num">{listing.counts.images}</span>
-                <span className="import-count-label">images here</span>
+                <span className="import-count-label">photos in this folder</span>
               </div>
               <div>
                 <span className="import-count-num">{listing.folders.length}</span>
-                <span className="import-count-label">subfolders</span>
+                <span className="import-count-label">folders inside</span>
               </div>
             </div>
 
             {parentPath !== null && (
               <button className="folder-row folder-row-parent" onClick={() => setPath(parentPath)}>
                 <span className="folder-icon">↑</span>
-                <span>.. (up one level)</span>
+                <span>Back to {breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2] : "your Dropbox"}</span>
               </button>
             )}
 
             {listing.folders.length === 0 && listing.counts.images === 0 && (
               <div className="import-empty">
-                <p className="import-empty-title">This folder is empty.</p>
+                <p className="import-empty-title">Nothing in this folder.</p>
                 {(!path || path === "/") ? (
                   <>
                     <p className="import-empty-body">
-                      Two common reasons your Dropbox root looks empty here:
+                      A couple of common reasons your Dropbox looks empty here:
                     </p>
                     <ol className="import-empty-list">
                       <li>
-                        <strong>App-folder type Dropbox app.</strong> If you picked
-                        <em> &ldquo;App folder&rdquo;</em> when creating the app at dropbox.com/developers/apps,
-                        we can only see <code>Apps/&lt;your-app-name&gt;/</code> — not your whole Dropbox.
-                        Either move some photos into that folder, or recreate the app with
-                        <em> &ldquo;Full Dropbox&rdquo;</em> access (then disconnect + reconnect here).
+                        <strong>The app only has access to a single folder.</strong> If
+                        you picked &ldquo;App folder&rdquo; when first connecting, we can only
+                        see one specific folder inside your Dropbox — not everything. Easiest
+                        fix: disconnect, then reconnect using a Dropbox app with full access.
                       </li>
                       <li>
-                        <strong>Your photos are in a subfolder.</strong> If you keep them in
-                        <code>/Photos</code> or <code>/Camera Uploads</code>, type that path below.
+                        <strong>Your photos live in a sub-folder.</strong> Common
+                        places: Photos, Camera Uploads, or a folder named after a shoot.
+                        Type that folder name in the box below to jump straight there.
                       </li>
                     </ol>
                   </>
                 ) : (
                   <p className="import-empty-body">
-                    No images or subfolders in <code>{path}</code>. Try a different path.
+                    No photos or folders inside <code>{path}</code>. Try going back up a level
+                    or type a different folder name below.
                   </p>
                 )}
               </div>
@@ -371,7 +373,7 @@ function ImportPageInner() {
             </div>
           </>
         ) : (
-          <p style={{ color: "var(--muted)" }}>Pick a folder to begin.</p>
+          <p style={{ color: "var(--muted)" }}>Tap a folder above to look inside.</p>
         )}
       </div>
 
@@ -422,8 +424,8 @@ function ImportPageInner() {
       )}
 
       <p className="privacy-line" style={{ marginTop: 20 }}>
-        <span className="privacy-dot" aria-hidden /> Dropbox bytes stay in your Dropbox.
-        We never duplicate them; the vault references your Dropbox files by ID and re-signs short-lived URLs server-side.
+        <span className="privacy-dot" aria-hidden /> Your photos never leave Dropbox.
+        We point to your files in your account — we don&rsquo;t copy or store them anywhere else. Each time we need to look at one we ask Dropbox for a short-lived link that expires quickly.
       </p>
     </main>
   );

@@ -9,6 +9,9 @@
 // down to maybe 1500 keepers, then ~$7.50 to deep-tag those — total ~$15
 // instead of ~$40 for naive deep-tag-everything.
 
+import { recordUsage } from "./usage";
+import { costForReplicateRuntime } from "./pricing";
+
 const REPLICATE_API = "https://api.replicate.com/v1";
 
 export type PrefilterVerdict = {
@@ -43,7 +46,7 @@ SKIP: group-photo: candid group photo at a bar, not creator content
 
 Answer now:`;
 
-export async function prefilterImage(imageUrlOrDataUrl: string): Promise<PrefilterVerdict> {
+export async function prefilterImage(imageUrlOrDataUrl: string, userId?: string | null): Promise<PrefilterVerdict> {
   const token = process.env.REPLICATE_API_TOKEN;
   const modelSlug = process.env.CAPTIONER_MODEL || process.env.JOY_CAPTION_MODEL;
   if (!token || !modelSlug) {
@@ -60,6 +63,7 @@ export async function prefilterImage(imageUrlOrDataUrl: string): Promise<Prefilt
   const version: string = versionBody?.latest_version?.id;
   if (!version) throw new Error(`Model ${modelSlug} has no latest_version`);
 
+  const wallStart = Date.now();
   const createRes = await postWithBackoff(
     `${REPLICATE_API}/predictions`,
     {
@@ -90,10 +94,25 @@ export async function prefilterImage(imageUrlOrDataUrl: string): Promise<Prefilt
     });
     prediction = await poll.json();
   }
+  const wallMs = Date.now() - wallStart;
 
   if (prediction.status !== "succeeded") {
     throw new Error(`Prefilter ${prediction.status}: ${prediction.error || "unknown"}`);
   }
+
+  const predictTimeSec: number =
+    typeof prediction?.metrics?.predict_time === "number"
+      ? prediction.metrics.predict_time
+      : wallMs / 1000;
+  recordUsage({
+    user_id: userId ?? null,
+    provider: "replicate",
+    model: modelSlug,
+    op: "prefilter",
+    runtime_ms: Math.round(predictTimeSec * 1000),
+    cost_usd: costForReplicateRuntime(modelSlug, predictTimeSec),
+    metadata: { prediction_id: prediction.id ?? null },
+  });
 
   const raw = Array.isArray(prediction.output)
     ? prediction.output.join("").trim()
