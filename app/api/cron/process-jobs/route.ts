@@ -22,7 +22,14 @@ import type { ImageTags } from "@/lib/captioner";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const JOBS_PER_TICK = 5;
+// Replicate's normal-tier rate limit is ~600 predictions/min. Their
+// throttled tier (when account credit drops below $5) is 6/min with a
+// burst of 1. We keep this conservative at 2 jobs/tick because each
+// analyze_image job fires up to 3 predictions in parallel (NSFW + caption +
+// strategist), so 2 jobs = ~6 concurrent predictions — well within either
+// tier. Bump only if you're consistently above $20 in Replicate credit and
+// want faster throughput.
+const JOBS_PER_TICK = 2;
 
 const NO_NUDITY_PLATFORMS = PLATFORMS.filter((p) => p.policy === "no-nudity").map((p) => p.id);
 const PAID_PLATFORMS = PLATFORMS.filter((p) => p.paid).map((p) => p.id);
