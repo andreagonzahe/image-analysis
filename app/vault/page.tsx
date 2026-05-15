@@ -8,9 +8,39 @@ import { PLATFORMS } from "@/lib/platforms";
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 
+/**
+ * Compact "posted N ago" — kept short so it fits inside the badge corner.
+ * Hours when <1d, days when <30d, otherwise the date. Always says "Posted".
+ */
+function formatPostedAgo(isoOrMs: string | number | null | undefined): string {
+  if (!isoOrMs) return "Posted";
+  const t = typeof isoOrMs === "number" ? isoOrMs : new Date(isoOrMs).getTime();
+  if (!isFinite(t)) return "Posted";
+  const diffMs = Date.now() - t;
+  if (diffMs < 0) return "Posted";
+  const mins = diffMs / 60000;
+  if (mins < 60) return `Posted ${Math.max(1, Math.round(mins))}m ago`;
+  const hours = mins / 60;
+  if (hours < 24) return `Posted ${Math.round(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `Posted ${Math.round(days)}d ago`;
+  const months = days / 30;
+  if (months < 12) return `Posted ${Math.round(months)}mo ago`;
+  return `Posted ${new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+}
+
 type RatingFilter = "all" | "SFW" | "suggestive" | "NSFW";
-type SortKey = "recent" | "oldest" | "price_high" | "price_low" | "platform";
+type SortKey =
+  | "recent"
+  | "oldest"
+  | "price_high"
+  | "price_low"
+  | "platform"
+  | "posted_recent"
+  | "posted_oldest"
+  | "unposted_first";
 type SourceFilter = "all" | "local" | "remote" | "both";
+type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
 
 type AuthState = { auth_enabled: boolean; sync_enabled: boolean; signed_in: boolean };
 
@@ -21,6 +51,7 @@ export default function VaultPage() {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [platformFilter, setPlatformFilter] = useState<string | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("recent");
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -85,6 +116,16 @@ export default function VaultPage() {
     if (ratingFilter !== "all") out = out.filter((p) => p.content_rating === ratingFilter);
     if (platformFilter !== "all") out = out.filter((p) => p.primary_platform === platformFilter);
     if (sourceFilter !== "all") out = out.filter((p) => p.source === sourceFilter || (sourceFilter === "remote" && p.source === "both"));
+    if (statusFilter === "posted") {
+      out = out.filter((p) => p.status === "posted");
+    } else if (statusFilter === "not_posted") {
+      out = out.filter((p) => p.status === "pending" || p.status === "scheduled" || !p.status);
+    } else if (statusFilter === "skipped") {
+      out = out.filter((p) => p.status === "skipped");
+    }
+
+    const postedTime = (p: MergedPost) =>
+      p.posted_at ? new Date(p.posted_at).getTime() : null;
 
     switch (sort) {
       case "recent":
@@ -106,9 +147,44 @@ export default function VaultPage() {
       case "platform":
         out.sort((a, b) => platformName(a.primary_platform).localeCompare(platformName(b.primary_platform)));
         break;
+      case "posted_recent":
+        // Most recently posted first. Never-posted items fall to the bottom.
+        out.sort((a, b) => {
+          const at = postedTime(a);
+          const bt = postedTime(b);
+          if (at === null && bt === null) return b.created_at - a.created_at;
+          if (at === null) return 1;
+          if (bt === null) return -1;
+          return bt - at;
+        });
+        break;
+      case "posted_oldest":
+        // Oldest posted first — surfaces content that's been sitting longest
+        // since you last reused it.
+        out.sort((a, b) => {
+          const at = postedTime(a);
+          const bt = postedTime(b);
+          if (at === null && bt === null) return a.created_at - b.created_at;
+          if (at === null) return 1;
+          if (bt === null) return -1;
+          return at - bt;
+        });
+        break;
+      case "unposted_first":
+        // Unposted items first (oldest backlog first), then posted by date desc.
+        out.sort((a, b) => {
+          const aUnposted = a.status !== "posted";
+          const bUnposted = b.status !== "posted";
+          if (aUnposted !== bUnposted) return aUnposted ? -1 : 1;
+          if (aUnposted) return a.created_at - b.created_at; // both unposted: oldest first
+          const at = postedTime(a) ?? 0;
+          const bt = postedTime(b) ?? 0;
+          return bt - at; // both posted: most recent first
+        });
+        break;
     }
     return out;
-  }, [posts, ratingFilter, platformFilter, sourceFilter, sort]);
+  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, sort]);
 
   const platformsInVault = useMemo(() => {
     if (!posts) return [];
@@ -129,6 +205,32 @@ export default function VaultPage() {
         URL.revokeObjectURL(thumbUrls[id]);
         setThumbUrls(({ [id]: _, ...rest }) => rest);
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const onSetStatus = async (id: string, status: PostStatus, platformId: string) => {
+    // Optimistic update so the badge and sort order respond instantly.
+    setPosts((curr) =>
+      curr
+        ? curr.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  status,
+                  posted_at: status === "posted" ? new Date().toISOString() : null,
+                  posted_on_platform: status === "posted" ? platformId : null,
+                }
+              : p
+          )
+        : curr
+    );
+    try {
+      await updatePostStatus(id, {
+        status,
+        posted_on_platform: status === "posted" ? platformId : null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -253,14 +355,31 @@ export default function VaultPage() {
                 <Chip active={sourceFilter === "remote"} onClick={() => setSourceFilter("remote")}>Synced</Chip>
               </div>
             )}
+            <div className="chip-row">
+              <Chip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>Any status</Chip>
+              <Chip active={statusFilter === "not_posted"} onClick={() => setStatusFilter("not_posted")}>Not posted yet</Chip>
+              <Chip active={statusFilter === "posted"} onClick={() => setStatusFilter("posted")}>Posted</Chip>
+              <Chip active={statusFilter === "skipped"} onClick={() => setStatusFilter("skipped")}>Skipped</Chip>
+            </div>
             <div className="sort-row">
               <label htmlFor="sort" className="sort-label">Sort</label>
               <select id="sort" className="sort-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                <option value="recent">Most recent</option>
-                <option value="oldest">Oldest first</option>
-                <option value="price_high">Highest price</option>
-                <option value="price_low">Lowest price</option>
-                <option value="platform">Platform (A–Z)</option>
+                <optgroup label="By date added">
+                  <option value="recent">Most recently added</option>
+                  <option value="oldest">Oldest added</option>
+                </optgroup>
+                <optgroup label="By posting status">
+                  <option value="unposted_first">Unposted first, then by post date</option>
+                  <option value="posted_recent">Posted most recently</option>
+                  <option value="posted_oldest">Posted longest ago (re-use these)</option>
+                </optgroup>
+                <optgroup label="By price">
+                  <option value="price_high">Highest price</option>
+                  <option value="price_low">Lowest price</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="platform">Platform (A–Z)</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -279,6 +398,7 @@ export default function VaultPage() {
                   expanded={expanded === post.id}
                   onToggleExpand={() => setExpanded((cur) => (cur === post.id ? null : post.id))}
                   onDelete={() => onDelete(post.id)}
+                  onSetStatus={(status) => onSetStatus(post.id, status, post.primary_platform)}
                 />
               ))}
             </div>
@@ -374,12 +494,14 @@ function VaultCard({
   expanded,
   onToggleExpand,
   onDelete,
+  onSetStatus,
 }: {
   post: MergedPost;
   thumbUrl: string | undefined;
   expanded: boolean;
   onToggleExpand: () => void;
   onDelete: () => void;
+  onSetStatus: (status: PostStatus) => void;
 }) {
   const a = post.analysis;
   const pr = a.primary_recommendation;
@@ -421,9 +543,16 @@ function VaultCard({
         )}
         <span className={`rating-pill ${post.content_rating}`}>{post.content_rating}</span>
         {isRemoteOnly && <span className="source-badge">Synced</span>}
-        {post.status && post.status !== "pending" && (
+        {post.status === "posted" ? (
+          <span
+            className="status-badge status-badge-posted"
+            title={post.posted_at ? `Posted ${new Date(post.posted_at).toLocaleString()}${post.posted_on_platform ? ` on ${platformName(post.posted_on_platform)}` : ""}` : "Posted"}
+          >
+            ✓ {formatPostedAgo(post.posted_at)}
+          </span>
+        ) : post.status && post.status !== "pending" ? (
           <span className={`status-badge status-badge-${post.status}`}>{post.status}</span>
-        )}
+        ) : null}
       </div>
       <div className="vault-body">
         <div className="vault-meta">
@@ -442,6 +571,23 @@ function VaultCard({
             <a className="btn-compose" href={composeUrl} target="_blank" rel="noopener noreferrer">
               Open {platformName(pr.platform)} →
             </a>
+          )}
+          {post.status === "posted" ? (
+            <button
+              className="btn-ghost"
+              onClick={() => onSetStatus("pending")}
+              title="Unmark — useful if you want to repost or reset the date"
+            >
+              Mark unposted
+            </button>
+          ) : (
+            <button
+              className="btn-ghost"
+              onClick={() => onSetStatus("posted")}
+              title="Record that you posted this — saves the timestamp so you can sort + reuse later"
+            >
+              ✓ Mark posted
+            </button>
           )}
           <button className="btn-ghost" onClick={onToggleExpand}>
             {expanded ? "Hide details" : "Details"}
