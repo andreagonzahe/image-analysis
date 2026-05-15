@@ -39,8 +39,56 @@ export async function POST(req: Request) {
   }
 
   const claimed = await claimJobs(JOBS_PER_TICK);
+
+  // Always sample recent failures for diagnostic visibility — even on a
+  // successful tick we want to surface what's been going wrong.
+  const supabase0 = getSupabase();
+  const { data: recentFailures } = await supabase0
+    .from("jobs")
+    .select("error_message, kind, attempts")
+    .eq("status", "failed")
+    .order("completed_at", { ascending: false })
+    .limit(3);
+
   if (claimed.length === 0) {
-    return NextResponse.json({ processed: 0, message: "No pending jobs." });
+    // Diagnostic: when nothing was claimed, look at what's actually in the
+    // jobs table and return the breakdown. This is how we figure out why
+    // a queue that "should" be moving isn't.
+    const supabase = getSupabase();
+    const nowIso = new Date().toISOString();
+    const { data: all } = await supabase
+      .from("jobs")
+      .select("status, attempts, next_attempt_at, kind")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    const byStatus: Record<string, number> = {};
+    let blockedByAttempts = 0;
+    let blockedByBackoff = 0;
+    for (const j of all ?? []) {
+      byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
+      if ((j.status === "pending" || j.status === "failed") && (j.attempts ?? 0) >= 3) {
+        blockedByAttempts++;
+      }
+      if (
+        (j.status === "pending" || j.status === "failed") &&
+        j.next_attempt_at &&
+        j.next_attempt_at > nowIso
+      ) {
+        blockedByBackoff++;
+      }
+    }
+    return NextResponse.json({
+      processed: 0,
+      message: "No pending jobs.",
+      diagnostic: {
+        scanned_recent: all?.length ?? 0,
+        by_status: byStatus,
+        blocked_by_max_attempts: blockedByAttempts,
+        blocked_by_backoff: blockedByBackoff,
+        now: nowIso,
+        recent_failures: recentFailures ?? [],
+      },
+    });
   }
 
   // Process in parallel — Replicate has retry-on-429 built into our clients,
@@ -58,6 +106,7 @@ export async function POST(req: Request) {
     processed: claimed.length,
     done,
     failed,
+    recent_failures: recentFailures ?? [],
   });
 }
 

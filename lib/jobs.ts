@@ -149,32 +149,53 @@ export async function claimJobs(limit: number): Promise<Job[]> {
   // Pull the IDs of the next batch of work, then update them in a single shot.
   // We do it in two steps because the Supabase JS client doesn't expose
   // `update ... returning *` with the where-in pattern cleanly.
+  //
+  // Previous implementation used `.or("next_attempt_at.is.null,next_attempt_at.lte.X")`
+  // but that silently returned zero rows on Supabase JS v2 even when 150
+  // pending jobs with NULL next_attempt_at existed. Filter in JS instead —
+  // it's a few-row pass after the indexed SELECT, no measurable perf hit.
   const nowIso = new Date().toISOString();
   const { data: candidates, error: selErr } = await supabase
     .from("jobs")
-    .select("id")
+    .select("id, next_attempt_at")
     .in("status", ["pending", "failed"])
-    .or(`next_attempt_at.is.null,next_attempt_at.lte.${nowIso}`)
     .lt("attempts", MAX_ATTEMPTS)
     .order("priority", { ascending: false })
     .order("created_at", { ascending: true })
-    .limit(limit);
+    .limit(limit * 4); // overfetch in case some are backed off
 
-  if (selErr || !candidates || candidates.length === 0) return [];
-  const ids = candidates.map((c) => c.id);
+  if (selErr) {
+    console.warn("[jobs] claimJobs select error:", selErr.message);
+    return [];
+  }
+  if (!candidates || candidates.length === 0) return [];
 
+  // Drop anything whose backoff hasn't expired yet.
+  const ready = candidates.filter(
+    (c) => !c.next_attempt_at || c.next_attempt_at <= nowIso
+  );
+  if (ready.length === 0) return [];
+  const ids = ready.slice(0, limit).map((c) => c.id);
+
+  // DO NOT touch `attempts` in this UPDATE — earlier the code set it to null
+  // as a "placeholder" which silently failed when attempts is NOT NULL, leaving
+  // every claim attempt returning empty. The actual attempts++ happens in the
+  // follow-up loop below.
   const { data: claimed, error: updErr } = await supabase
     .from("jobs")
     .update({
       status: "processing",
       started_at: nowIso,
-      attempts: ((null as unknown) as number), // placeholder, fixed below via RPC-less inc
     })
     .in("id", ids)
     .in("status", ["pending", "failed"]) // race guard: don't claim if another worker already grabbed it
     .select();
 
-  if (updErr || !claimed) return [];
+  if (updErr) {
+    console.warn("[jobs] claimJobs update error:", updErr.message);
+    return [];
+  }
+  if (!claimed) return [];
 
   // Increment attempts in a follow-up call (Supabase client doesn't support
   // increment in update().set() without a custom Postgres function — keeping it

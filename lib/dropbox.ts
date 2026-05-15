@@ -32,7 +32,13 @@ export type DropboxEntry = {
   server_modified?: string;
 };
 
-const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|webp|heic|heif|gif|tiff)$/i;
+// Only formats Replicate's vision models can actually decode. HEIC/HEIF
+// (Apple Photos default) and TIFF fail with "cannot identify image file"
+// because the model's PIL build can't read them. GIF is excluded because
+// most prefilter/captioner models read only the first frame anyway and
+// the result is unreliable. Add HEIC back when we wire server-side
+// conversion (heic-to in a Node route).
+const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|webp)$/i;
 
 /** Required environment variables for Dropbox OAuth. */
 export function getDropboxEnv() {
