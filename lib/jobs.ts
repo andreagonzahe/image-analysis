@@ -155,13 +155,18 @@ export async function claimJobs(limit: number): Promise<Job[]> {
   // pending jobs with NULL next_attempt_at existed. Filter in JS instead —
   // it's a few-row pass after the indexed SELECT, no measurable perf hit.
   const nowIso = new Date().toISOString();
+  // Order: priority DESC, then created_at DESC (NEWEST first). Earlier we
+  // claimed oldest-first which meant a user's current import was starved
+  // when older half-failed batches still had pending jobs — they'd watch
+  // 0/75 forever while the worker drained someone else's old batch. With
+  // newest-first, the just-started import always drains in front.
   const { data: candidates, error: selErr } = await supabase
     .from("jobs")
     .select("id, next_attempt_at")
     .in("status", ["pending", "failed"])
     .lt("attempts", MAX_ATTEMPTS)
     .order("priority", { ascending: false })
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit * 4); // overfetch in case some are backed off
 
   if (selErr) {

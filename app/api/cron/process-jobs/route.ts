@@ -64,10 +64,11 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const { data: all } = await supabase
       .from("jobs")
-      .select("status, attempts, next_attempt_at, kind")
+      .select("status, attempts, next_attempt_at, kind, batch_id")
       .order("created_at", { ascending: false })
       .limit(500);
     const byStatus: Record<string, number> = {};
+    const byBatch: Record<string, Record<string, number>> = {};
     let blockedByAttempts = 0;
     let blockedByBackoff = 0;
     for (const j of all ?? []) {
@@ -82,6 +83,9 @@ export async function POST(req: Request) {
       ) {
         blockedByBackoff++;
       }
+      const b = String(j.batch_id ?? "(no batch)");
+      if (!byBatch[b]) byBatch[b] = {};
+      byBatch[b][j.status] = (byBatch[b][j.status] ?? 0) + 1;
     }
     return NextResponse.json({
       processed: 0,
@@ -89,6 +93,7 @@ export async function POST(req: Request) {
       diagnostic: {
         scanned_recent: all?.length ?? 0,
         by_status: byStatus,
+        by_batch: byBatch,
         blocked_by_max_attempts: blockedByAttempts,
         blocked_by_backoff: blockedByBackoff,
         now: nowIso,

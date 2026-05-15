@@ -2,11 +2,40 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
 import { getConnectionForUser, listAllImages } from "@/lib/dropbox";
 import { createBatch, enqueueJobs } from "@/lib/jobs";
+import { getSupabase } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_PER_IMPORT = 10000;
+
+/**
+ * When the user kicks off a new import, mark all of their prior still-running
+ * batches as cancelled and skip their queued jobs. Prevents the new batch
+ * from being starved by the worker draining older, abandoned imports first.
+ */
+async function cancelPriorRunningBatches(userId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { data: priorBatches } = await supabase
+    .from("job_batches")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "running");
+  const ids = (priorBatches ?? []).map((b) => b.id as string);
+  if (ids.length === 0) return;
+  await supabase
+    .from("jobs")
+    .update({
+      status: "skipped",
+      error_message: "Cancelled — superseded by a newer import",
+    })
+    .in("batch_id", ids)
+    .in("status", ["pending", "failed", "processing"]);
+  await supabase
+    .from("job_batches")
+    .update({ status: "cancelled", completed_at: new Date().toISOString() })
+    .in("id", ids);
+}
 
 /**
  * Kick off a Dropbox import:
@@ -44,6 +73,11 @@ export async function POST(req: Request) {
     if (files.length === 0) {
       return NextResponse.json({ error: "No images found in that folder." }, { status: 400 });
     }
+
+    // Cancel any prior running batches for this user before creating a new
+    // one. Otherwise their pending jobs compete for the queue and the user
+    // watches a "0/N" status page that's actually being starved by old work.
+    await cancelPriorRunningBatches(userId);
 
     const batch = await createBatch({
       user_id: userId,

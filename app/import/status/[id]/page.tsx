@@ -75,6 +75,27 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
     }
   };
 
+  const cancelOthers = async () => {
+    setRetrying(true);
+    setRetryMsg(null);
+    try {
+      const res = await fetch("/api/jobs/cancel-other-batches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keep_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Cancel failed");
+      setRetryMsg(
+        `Cancelled ${json.cancelled_batches} older batch${json.cancelled_batches === 1 ? "" : "es"} (${json.cancelled_jobs} jobs freed). The worker will now focus on this batch only.`
+      );
+    } catch (e) {
+      setRetryMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const fetchOnce = async () => {
@@ -288,14 +309,24 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
         <Link href="/vault" className="btn btn-primary">Open vault</Link>
         <Link href="/import" className="btn btn-secondary">Import another folder</Link>
         {(remaining > 0 || failed > 0) && (
-          <button
-            className="btn btn-secondary"
-            onClick={retryAll}
-            disabled={retrying}
-            title="If your import froze (e.g. Dropbox was disconnected when it ran), this resets every job in this batch and starts processing again."
-          >
-            {retrying ? "Resetting…" : "Retry stuck jobs"}
-          </button>
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={retryAll}
+              disabled={retrying}
+              title="Resets every job in this batch (status → pending, attempts → 0) so the worker re-processes them. Use after a transient failure window like a Dropbox disconnect or a Replicate rate-limit period."
+            >
+              {retrying ? "Working…" : "Retry stuck jobs"}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={cancelOthers}
+              disabled={retrying}
+              title="If you ran multiple imports, older half-failed batches keep stealing the worker's attention. This cancels every other running batch so this one drains first."
+            >
+              Cancel old batches
+            </button>
+          </>
         )}
       </div>
       {retryMsg && (
