@@ -240,6 +240,10 @@ export default function TodayPage() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // Re-roll: each click adds the currently-assigned post IDs to this set
+  // so the next assignment skips them and surfaces different content.
+  // Clears when posts list changes (new vault item could be a better match).
+  const [rerolledOut, setRerolledOut] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -300,7 +304,9 @@ export default function TodayPage() {
   const today = useMemo(() => {
     if (!posts || !profileLoaded) return null;
     const slots = buildSlots(profile);
-    const pending = posts.filter((p) => p.status === "pending");
+    const pending = posts.filter(
+      (p) => p.status === "pending" && !rerolledOut.has(p.id)
+    );
     const fills = assignSlots(slots, pending);
 
     const postedToday = posts.filter((p) => {
@@ -336,7 +342,21 @@ export default function TodayPage() {
         backlog: pending.length,
       },
     };
-  }, [posts, profile, profileLoaded]);
+  }, [posts, profile, profileLoaded, rerolledOut]);
+
+  const reroll = () => {
+    if (!today) return;
+    const currentIds = today.fills
+      .map((f) => f.post?.id)
+      .filter((id): id is string => Boolean(id));
+    setRerolledOut((prev) => {
+      const next = new Set(prev);
+      for (const id of currentIds) next.add(id);
+      return next;
+    });
+  };
+
+  const resetRerolls = () => setRerolledOut(new Set());
 
   // ---------- Loading / empty states ----------
 
@@ -400,6 +420,25 @@ export default function TodayPage() {
           <p className="hero-sub" style={{ margin: 0 }}>
             One slot per platform you actively post on. Tick each off as you post.
           </p>
+          <div className="cta-row" style={{ marginTop: 10, gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              onClick={reroll}
+              disabled={today.stats.filledCount === 0}
+              title="Pick different content for each slot. The current items get skipped; next-best matches take their place."
+            >
+              🎲 New suggestions
+            </button>
+            {rerolledOut.size > 0 && (
+              <button
+                className="btn-ghost"
+                onClick={resetRerolls}
+                title="Bring back items you rolled away"
+              >
+                Reset re-rolls ({rerolledOut.size} skipped)
+              </button>
+            )}
+          </div>
         </div>
         <div className="today-stats">
           <div className="today-stat">

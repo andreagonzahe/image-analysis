@@ -3547,6 +3547,35 @@ h1.title {
   padding: 0 4px;
 }
 
+/* ===== Vault cleanup zone (one tier softer than the danger zone) ===== */
+.vault-cleanup-zone {
+  margin-top: 36px;
+  padding: 18px 22px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.vault-cleanup-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.vault-cleanup-body {
+  margin: 0;
+  max-width: 540px;
+  font-size: 13.5px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
 /* ===== Vault danger zone + wipe modal ===== */
 .vault-danger-zone {
   margin-top: 48px;

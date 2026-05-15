@@ -61,6 +61,48 @@ export default function VaultPage() {
   const [wipeConfirmText, setWipeConfirmText] = useState("");
   const [wiping, setWiping] = useState(false);
   const [wipeError, setWipeError] = useState<string | null>(null);
+  const [cleanupCount, setCleanupCount] = useState<number | null>(null);
+  const [cleanupRunning, setCleanupRunning] = useState(false);
+  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
+
+  const scanForCleanup = async () => {
+    setCleanupRunning(true);
+    setCleanupMsg(null);
+    try {
+      const res = await fetch("/api/vault/cleanup-no-people");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Scan failed");
+      setCleanupCount(data.count ?? 0);
+    } catch (e) {
+      setCleanupMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCleanupRunning(false);
+    }
+  };
+
+  const runCleanup = async () => {
+    if (!confirm(`Delete ${cleanupCount} post${cleanupCount === 1 ? "" : "s"} that don't contain a visible person? This can't be undone.`)) return;
+    setCleanupRunning(true);
+    setCleanupMsg(null);
+    try {
+      const res = await fetch("/api/vault/cleanup-no-people", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "REMOVE NO-PEOPLE" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Cleanup failed");
+      setCleanupCount(0);
+      setCleanupMsg(`Removed ${data.posts_deleted} post${data.posts_deleted === 1 ? "" : "s"}.`);
+      // Refresh the grid.
+      const fresh = await listMergedPosts();
+      setPosts(fresh);
+    } catch (e) {
+      setCleanupMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCleanupRunning(false);
+    }
+  };
 
   const wipeVault = async () => {
     if (wipeConfirmText !== "DELETE EVERYTHING") return;
@@ -405,27 +447,69 @@ export default function VaultPage() {
           )}
 
           {posts.length > 0 && (
-            <section className="vault-danger-zone">
-              <div>
-                <h3 className="vault-danger-title">Danger zone</h3>
-                <p className="vault-danger-body">
-                  Wipe everything in your vault. Removes every analyzed post,
-                  every cloud-stored image, and the local IndexedDB copy on
-                  this device. Dropbox files themselves stay safe in your
-                  Dropbox. <strong>This cannot be undone.</strong>
-                </p>
-              </div>
-              <button
-                className="btn btn-danger"
-                onClick={() => {
-                  setWipeError(null);
-                  setWipeConfirmText("");
-                  setShowWipeModal(true);
-                }}
-              >
-                Delete entire vault
-              </button>
-            </section>
+            <>
+              <section className="vault-cleanup-zone">
+                <div>
+                  <h3 className="vault-cleanup-title">Clean up no-people pictures</h3>
+                  <p className="vault-cleanup-body">
+                    Find every analyzed post that doesn&rsquo;t contain a visible person —
+                    landscapes, food shots, screenshots, pet pics, room interiors. Older
+                    imports (before the stricter prefilter) often have these slipping through.
+                  </p>
+                  {cleanupCount !== null && cleanupCount > 0 && (
+                    <p className="vault-cleanup-body" style={{ marginTop: 8 }}>
+                      <strong>{cleanupCount.toLocaleString()} post{cleanupCount === 1 ? "" : "s"} found.</strong>{" "}
+                      Click below to delete them.
+                    </p>
+                  )}
+                  {cleanupCount === 0 && (
+                    <p className="vault-cleanup-body" style={{ marginTop: 8 }}>
+                      <strong>Nothing to clean up — every post in your vault has a person in it.</strong>
+                    </p>
+                  )}
+                  {cleanupMsg && (
+                    <p className="vault-cleanup-body" style={{ marginTop: 8, color: "var(--accent-strong)" }}>{cleanupMsg}</p>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {cleanupCount === null ? (
+                    <button className="btn btn-secondary" onClick={scanForCleanup} disabled={cleanupRunning}>
+                      {cleanupRunning ? "Scanning…" : "Scan for no-people posts"}
+                    </button>
+                  ) : cleanupCount > 0 ? (
+                    <button className="btn btn-danger" onClick={runCleanup} disabled={cleanupRunning}>
+                      {cleanupRunning ? "Removing…" : `Remove ${cleanupCount.toLocaleString()} post${cleanupCount === 1 ? "" : "s"}`}
+                    </button>
+                  ) : (
+                    <button className="btn btn-secondary" onClick={scanForCleanup} disabled={cleanupRunning}>
+                      Rescan
+                    </button>
+                  )}
+                </div>
+              </section>
+
+              <section className="vault-danger-zone">
+                <div>
+                  <h3 className="vault-danger-title">Danger zone</h3>
+                  <p className="vault-danger-body">
+                    Wipe everything in your vault. Removes every analyzed post,
+                    every cloud-stored image, and the local IndexedDB copy on
+                    this device. Dropbox files themselves stay safe in your
+                    Dropbox. <strong>This cannot be undone.</strong>
+                  </p>
+                </div>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => {
+                    setWipeError(null);
+                    setWipeConfirmText("");
+                    setShowWipeModal(true);
+                  }}
+                >
+                  Delete entire vault
+                </button>
+              </section>
+            </>
           )}
         </>
       )}

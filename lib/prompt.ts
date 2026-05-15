@@ -218,9 +218,9 @@ For every onlyfans and fansly recommendation (primary or alternative) you MUST o
 
 DISTRIBUTION RULES:
 1. Tier 1-2 on a paid platform → distribution_mode = "wall" (loyalty content lives on the feed).
-2. Tier 4-5 hero pieces → distribution_mode = "ppv" by default. Use "both" only if you're confident a teaser variant exists in the same shoot.
-3. Tier 3 → judgment call: "wall" if the creator's offer_mix doesn't include "ppv", otherwise lean "ppv" or "both".
-4. If the creator's profile shows of_account_mode = "free_paid_pair" AND this rec is for OF, the rationale must mention which account (free promo vs paid sub) the wall post belongs on.
+2. Tier 3 (topless/partial-nude artistic) → "wall" is fine on the PAID OF/Fansly wall. This is the sweet spot — gives subs visible value without burning PPV revenue. Lean "wall" by default at Tier 3.
+3. Tier 4-5 (fully nude / explicit) → ALMOST NEVER on the wall. distribution_mode = "ppv" by default; putting these on the wall gives subs the climax for free and tanks per-piece PPV revenue. Use "both" only when there's clearly a teaser variant in the same shoot (e.g., a cropped or back-turned version that builds wall-FOMO toward the PPV).
+4. If the creator's profile shows of_account_mode = "free_paid_pair" AND this rec is for OF, the rationale must mention which account (free promo vs paid sub) the wall post belongs on. Free-account wall = Tier 1-2 funnel only; paid-account wall = Tier 2-3 loyalty content.
 5. distribution_mode is ONLY required for onlyfans + fansly. Snapchat-premium / patreon don't need it (they have one delivery model). For all other platforms set it to null.
 
 The "caption" field on an OF/Fansly rec is ALWAYS the wall feed caption (used when distribution_mode is "wall" or "both"). The "ppv_dm_message" field is the DM sell message (used when distribution_mode is "ppv" or "both"). When distribution_mode is "ppv" only, caption can still describe the visual but won't be posted publicly — keep it concise.
