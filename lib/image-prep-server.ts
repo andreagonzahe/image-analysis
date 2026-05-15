@@ -38,25 +38,54 @@ export async function prepImageForReplicate(
 ): Promise<string> {
   if (!isHeic(name)) return url;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Could not fetch HEIC source (${res.status}): ${url.slice(0, 80)}`);
+  // Dropbox temp URLs are usually fast but occasionally a single fetch
+  // throws ECONNRESET / ETIMEDOUT mid-stream and the whole job dies as
+  // "fetch failed". Retry up to 3 times with backoff before giving up.
+  let lastErr: unknown = null;
+  let buf: Buffer | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 30_000); // 30s per attempt
+      const res = await fetch(url, { signal: ac.signal });
+      clearTimeout(timer);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} fetching HEIC source`);
+      }
+      buf = Buffer.from(await res.arrayBuffer());
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, attempt * 1500));
+      }
+    }
   }
-  const buf = Buffer.from(await res.arrayBuffer());
+  if (!buf) {
+    const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    throw new Error(`HEIC download failed after 3 attempts for ${name}: ${reason}`);
+  }
+
   if (buf.byteLength > MAX_HEIC_BYTES) {
     throw new Error(
-      `HEIC source too large (${(buf.byteLength / 1024 / 1024).toFixed(1)} MB > ${MAX_HEIC_BYTES / 1024 / 1024} MB cap). Skipping.`
+      `HEIC source too large (${(buf.byteLength / 1024 / 1024).toFixed(1)} MB > ${MAX_HEIC_BYTES / 1024 / 1024} MB cap). Skipping ${name}.`
     );
   }
 
   // heic-convert's types want ArrayBufferLike; Node Buffer extends Uint8Array
   // so the underlying .buffer is what matters at runtime. Cast to keep
   // typing strict elsewhere.
-  const jpegBuf = await heicConvert({
-    buffer: buf as unknown as ArrayBufferLike,
-    format: "JPEG",
-    quality: JPEG_QUALITY,
-  });
+  let jpegBuf: ArrayBuffer;
+  try {
+    jpegBuf = await heicConvert({
+      buffer: buf as unknown as ArrayBufferLike,
+      format: "JPEG",
+      quality: JPEG_QUALITY,
+    });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`HEIC decode failed for ${name}: ${reason}`);
+  }
 
   const b64 = Buffer.from(jpegBuf).toString("base64");
   return `data:image/jpeg;base64,${b64}`;
