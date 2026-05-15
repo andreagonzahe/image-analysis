@@ -22,27 +22,41 @@ export type PrefilterVerdict = {
 
 const PREFILTER_PROMPT = `You are a content-library curator for an adult creator. Decide whether this image is worth keeping in their content library, OR whether it's noise that should be skipped.
 
-KEEP (answer "KEEP"):
-- Posed shots of the creator (selfies, mirror selfies, professional photos)
-- Lifestyle / aesthetic shots they took intentionally (food plating they're proud of, outfit shots, travel scenery)
-- Anything where the SUBJECT is the creator or their brand
+# Hard rule: people-only
 
-SKIP (answer "SKIP"):
-- Screenshots of text, conversations, apps, memes
-- Documents, receipts, IDs, paperwork
+The creator's library is for photos OF THE CREATOR. If the image does NOT contain a person, SKIP it — no matter how aesthetic, intentional, or pretty it is. Landscape, food, pet, plant, sunset, room interior, outfit-on-a-hanger, car, drink, etc. → SKIP.
+
+KEEP (answer "KEEP") — image MUST contain a visible person:
+- Selfies (front-camera, mirror, bathroom selfies)
+- Posed shots — professional photos, modeling, lingerie, boudoir
+- Outfit shots (full-body, clearly the creator, intentional pose)
+- Travel / lifestyle photos where the creator is IN frame
+
+SKIP (answer "SKIP") — anything in this list, even if it's a beautiful image:
+- Any screenshot — text conversations, app UIs, memes, browser windows, social media feeds, listings, receipts, maps, code, error pages, weather, etc. If it looks like a phone or computer screen captured to a photo, SKIP.
+- Documents, IDs, paperwork, handwritten notes
 - Photos of OTHER people that aren't the creator (friends, family, kids — privacy + brand reasons)
-- Random pets, food they didn't style, unintentional candids
-- Blurry / out-of-focus / accidental shots
-- Stock-photo-like content they didn't make
+- Pure scenery / landscape / sky / sunset (no person)
+- Food, drinks, table settings (no person)
+- Pets, animals on their own
+- Plants, flowers, decor, room interiors
+- Outfits / clothes laid out without a person wearing them
+- Cars, buildings, objects
+- Blurry / out-of-focus / accidentally captured
+- Stock photos, downloaded inspiration images
 
 Output exactly:
 <KEEP or SKIP>: <one-word category>: <12-word reason>
 
 Examples:
 KEEP: selfie: mirror selfie, posed, in lingerie, clearly creator-shot
-KEEP: lifestyle: outfit-of-the-day shot, intentional framing, brand aesthetic
-SKIP: screenshot: screenshot of a text-message conversation, no visual content
-SKIP: group-photo: candid group photo at a bar, not creator content
+KEEP: modeling: full-body outdoor shot, creator posing in swimwear
+SKIP: screenshot: text-message conversation captured to photo
+SKIP: screenshot: real-estate listing on phone, no person visible
+SKIP: no-person: sunset landscape, beautiful but nobody in frame
+SKIP: no-person: food plate close-up, nobody visible
+SKIP: pet: cat sleeping on couch, no creator in frame
+SKIP: group-photo: bar photo with friends, not creator content
 
 Answer now:`;
 
