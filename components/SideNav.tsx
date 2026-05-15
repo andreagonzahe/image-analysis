@@ -87,6 +87,26 @@ export function SideNav({ clerkEnabled, signedIn }: Props) {
         {clerkEnabled && signedIn && (
           <UserButton appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }} />
         )}
+        {clerkEnabled && !signedIn && (
+          <SignInButton
+            mode="modal"
+            appearance={{
+              elements: {
+                button: {
+                  background: "var(--accent)",
+                  color: "white",
+                  border: 0,
+                  padding: "7px 14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                },
+              },
+            }}
+          />
+        )}
       </header>
 
       {open && <div className="side-nav-overlay" onClick={() => setOpen(false)} aria-hidden />}
