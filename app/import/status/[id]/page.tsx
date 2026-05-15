@@ -29,6 +29,32 @@ type BatchStatus = {
   }>;
 };
 
+function formatEta(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return "almost done";
+  if (seconds < 60) return `~${Math.round(seconds)} sec`;
+  const min = seconds / 60;
+  if (min < 60) {
+    if (min < 2) return "~1 min";
+    if (min < 10) return `~${Math.round(min)} min`;
+    return `~${Math.round(min)} min`;
+  }
+  const hr = min / 60;
+  return `~${Math.round(hr * 10) / 10} hr`;
+}
+
+function staticRange(remaining: number): string {
+  // Same model as /import page: fast end assumes chain-fired cron,
+  // slow end assumes 5 jobs/min Vercel Cron schedule.
+  const fastMin = (remaining * 1.5) / 60;
+  const slowMin = (remaining * 1.28) / 5;
+  const fmt = (m: number) => {
+    if (m < 1) return "< 1 min";
+    if (m < 60) return `${Math.round(m)} min`;
+    return `${Math.round((m / 60) * 10) / 10} hr`;
+  };
+  return `${fmt(fastMin)}–${fmt(slowMin)}`;
+}
+
 export default function StatusPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [data, setData] = useState<BatchStatus | null>(null);
@@ -142,6 +168,26 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
   const remaining = Math.max(0, total - done - failed);
   const pct = total === 0 ? 0 : Math.round(((done + failed) / total) * 100);
 
+  // ----- Live ETA -----
+  // Throughput from when the batch started up to now. We only show the
+  // dynamic estimate once at least a few jobs have completed — otherwise
+  // a single fluke can produce a wildly wrong number. Before that, we
+  // show the same range-based static estimate the /import page uses.
+  const completedJobs = done + failed;
+  const startedAt = new Date(data.batch.created_at).getTime();
+  const elapsedSec = Math.max(1, (Date.now() - startedAt) / 1000);
+  const throughput = completedJobs > 0 ? completedJobs / elapsedSec : 0; // jobs/sec
+  let etaLabel = "";
+  if (isDone) {
+    etaLabel = "";
+  } else if (completedJobs >= 3 && throughput > 0) {
+    const etaSec = remaining / throughput;
+    etaLabel = `${formatEta(etaSec)} remaining · ${(throughput * 60).toFixed(1)} jobs/min`;
+  } else {
+    // No data yet — fall back to a static range so the user has something.
+    etaLabel = `Estimated ${staticRange(remaining)} total`;
+  }
+
   // Split out the two passes
   const pre = data.by_kind.prefilter ?? {};
   const ana = data.by_kind.analyze_image ?? {};
@@ -174,6 +220,9 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
           <span>{pct}%</span>
           <span>{remaining.toLocaleString()} remaining</span>
         </div>
+        {etaLabel && (
+          <div className="status-overall-eta">{etaLabel}</div>
+        )}
       </div>
 
       <div className="status-grid">

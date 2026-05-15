@@ -409,9 +409,11 @@ function ImportPageInner() {
           </div>
 
           <p style={{ fontSize: 13, color: "var(--muted)", margin: "16px 0 0" }}>
-            Time: with $5+ Replicate credit and a cron running every minute,
-            this should take {humanizeDuration(forecast.count)} in the background.
-            Your browser can be closed; we&rsquo;ll keep going.
+            Time: roughly <strong>{humanizeDuration(forecast.count)}</strong>.
+            The faster end assumes you keep the import status tab open
+            (work runs continuously); the slower end assumes you close it and
+            let the scheduler chip away every minute. The live status page
+            shows a real countdown once jobs start completing.
           </p>
 
           <div className="cta-row" style={{ marginTop: 20 }}>
@@ -439,9 +441,19 @@ function prettyBytes(n: number): string {
 }
 
 function humanizeDuration(count: number): string {
-  // With 5 jobs/min, prefilter pass = count/5 min. Analyze pass = keepers/5 min.
-  // Roughly: count * 1.28 / 5 minutes total under good rate-limit conditions.
-  const minutes = (count * 1.28) / 5;
-  if (minutes < 60) return `~${Math.round(minutes)} min`;
-  return `~${Math.round((minutes / 60) * 10) / 10} hours`;
+  // Two regimes:
+  // - Fast: import status page open in dev (chain-fired cron) — limited by
+  //   Replicate response time only. ~1.5s per image effective (prefilter
+  //   ~0.6s/image @ 5-parallel + 28% keepers × ~2.4s analyze).
+  // - Slow: production with Vercel Cron every 60s, 5 jobs/tick — so
+  //   5 jobs/min total throughput → ~12s effective per image after the
+  //   28% keeper ratio is applied (count * 1.28 / 5 minutes).
+  const fastMin = (count * 1.5) / 60;
+  const slowMin = (count * 1.28) / 5;
+  const fmt = (m: number) => {
+    if (m < 1) return "< 1 min";
+    if (m < 60) return `${Math.round(m)} min`;
+    return `${Math.round((m / 60) * 10) / 10} hr`;
+  };
+  return `${fmt(fastMin)}–${fmt(slowMin)}`;
 }
