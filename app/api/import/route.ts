@@ -7,7 +7,10 @@ import { getSupabase } from "@/lib/supabase-server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_PER_IMPORT = 10000;
+// Most user libraries fit under this. If you have more than 50k photos in
+// one folder you're an extreme outlier — split the import into a few
+// sub-folders and run them separately.
+const MAX_PER_IMPORT = 50000;
 
 /**
  * When the user kicks off a new import, mark all of their prior still-running
@@ -69,7 +72,11 @@ export async function POST(req: Request) {
   const dbPath = path === "/" ? "" : path;
 
   try {
-    const allFiles = await listAllImages(conn.access_token, dbPath, MAX_PER_IMPORT);
+    const { files: allFiles, truncated } = await listAllImages(
+      conn.access_token,
+      dbPath,
+      MAX_PER_IMPORT
+    );
     if (allFiles.length === 0) {
       return NextResponse.json({ error: "No images found in that folder." }, { status: 400 });
     }
@@ -82,6 +89,7 @@ export async function POST(req: Request) {
     const existingIds = await listExistingDropboxFileIds(userId);
     const files = allFiles.filter((f) => !existingIds.has(f.id));
     const skippedAsDuplicate = allFiles.length - files.length;
+    const _truncated = truncated; // surface to client below
     if (files.length === 0) {
       return NextResponse.json({
         error: `All ${allFiles.length} files in this folder are already in your vault. Nothing new to import.`,
@@ -122,6 +130,8 @@ export async function POST(req: Request) {
       batch_id: batch.id,
       count: files.length,
       skipped_as_duplicate: skippedAsDuplicate,
+      truncated: _truncated,
+      cap: MAX_PER_IMPORT,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -24,6 +24,8 @@ type FolderListing = {
 type Forecast = {
   count: number;
   total_bytes: number;
+  truncated?: boolean;
+  max_scanned?: number;
 };
 
 // Cost model — keep these in lockstep with /lib/prefilter + /lib/captioner
@@ -88,10 +90,15 @@ function ImportPageInner() {
     setScanning(true);
     setError(null);
     try {
-      const res = await fetch(`/api/dropbox/folder/contents?path=${encodeURIComponent(p || "/")}&max=10000`);
+      const res = await fetch(`/api/dropbox/folder/contents?path=${encodeURIComponent(p || "/")}&max=50000`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not scan folder");
-      setForecast({ count: data.count, total_bytes: data.total_bytes });
+      setForecast({
+        count: data.count,
+        total_bytes: data.total_bytes,
+        truncated: data.truncated,
+        max_scanned: data.max_scanned,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -388,6 +395,11 @@ function ImportPageInner() {
             We found <strong>{forecast.count.toLocaleString()}</strong> image{forecast.count === 1 ? "" : "s"} in{" "}
             <code>{path || "/"}</code> ({prettyBytes(forecast.total_bytes)}).
           </p>
+          {forecast.truncated && (
+            <div className="error-banner" style={{ marginBottom: 12 }}>
+              Folder has more than {forecast.max_scanned?.toLocaleString() ?? "50,000"} images — only the first {forecast.count.toLocaleString()} will be imported. To get the rest, run another import on a more specific sub-folder.
+            </div>
+          )}
 
           <div className="forecast-grid">
             <div className="forecast-row">

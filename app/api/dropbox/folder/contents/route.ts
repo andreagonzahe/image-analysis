@@ -25,15 +25,19 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const path = url.searchParams.get("path") ?? "";
   const dbPath = path === "/" ? "" : path;
-  const max = Math.min(Number(url.searchParams.get("max")) || 10000, 10000);
+  // Raised cap: most users with large libraries hit the old 10k limit
+  // silently. 50k handles ~99% of cases.
+  const max = Math.min(Number(url.searchParams.get("max")) || 50000, 50000);
 
   try {
-    const entries = await listAllImages(conn.access_token, dbPath, max);
+    const { files: entries, truncated } = await listAllImages(conn.access_token, dbPath, max);
     const totalBytes = entries.reduce((sum, e) => sum + (e.size ?? 0), 0);
     return NextResponse.json({
       path: path || "/",
       count: entries.length,
       total_bytes: totalBytes,
+      truncated,
+      max_scanned: max,
       files: entries.map((e) => ({
         id: e.id,
         name: e.name,

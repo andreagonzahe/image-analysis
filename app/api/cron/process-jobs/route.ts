@@ -23,12 +23,13 @@ import type { ImageTags } from "@/lib/captioner";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// One job per tick. Even at this rate the chain-fired client trigger keeps
-// the worker busy. Empirically: trying to run 2+ in parallel hits Replicate
-// concurrent-request limits even after the < $5 throttle lifts, because
-// analyze_image internally fires 3 Replicate calls. Sequential is dramatically
-// more reliable than concurrent here — fewer 429s = fewer wasted attempts.
-const JOBS_PER_TICK = 1;
+// 3 jobs/tick. Replicate's "regular" rate tier (account credit > $5) is
+// 600 predictions/min with much higher burst than the < $5 throttled tier.
+// 3 jobs × up to 3 Replicate calls each = ~9 concurrent — comfortably
+// within the regular tier and dramatically faster than 1/tick for large
+// imports (9k photos drop from ~30h → ~10h). If you ever drop below $5
+// credit again, knock this back down to 1.
+const JOBS_PER_TICK = 3;
 
 const NO_NUDITY_PLATFORMS = PLATFORMS.filter((p) => p.policy === "no-nudity").map((p) => p.id);
 const PAID_PLATFORMS = PLATFORMS.filter((p) => p.paid).map((p) => p.id);
