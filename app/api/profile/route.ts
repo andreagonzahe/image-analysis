@@ -52,6 +52,11 @@ export async function POST(req: Request) {
     persona_detail: body.persona_detail ?? null,
     primary_platforms: Array.isArray(body.primary_platforms) ? body.primary_platforms.slice(0, 20) : [],
     audience_size: body.audience_size && typeof body.audience_size === "object" ? body.audience_size : null,
+    boundaries_in: Array.isArray(body.boundaries_in) ? body.boundaries_in.slice(0, 20) : [],
+    strengths: Array.isArray(body.strengths) ? body.strengths.slice(0, 6) : [],
+    time_per_week: body.time_per_week ?? null,
+    revenue_target_monthly: body.revenue_target_monthly ?? null,
+    offer_mix: Array.isArray(body.offer_mix) ? body.offer_mix.slice(0, 15) : [],
     updated_at: new Date().toISOString(),
   };
   if (body.survey_dismissed_at !== undefined) {

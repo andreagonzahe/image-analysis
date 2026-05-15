@@ -7,6 +7,11 @@ import {
   TONE_OPTIONS,
   PERSONA_OPTIONS,
   PRIMARY_PLATFORMS_OPTIONS,
+  BOUNDARY_OPTIONS,
+  STRENGTH_OPTIONS,
+  TIME_PER_WEEK_OPTIONS,
+  REVENUE_TARGET_OPTIONS,
+  OFFER_MIX_OPTIONS,
   type CreatorProfile,
 } from "@/lib/profile";
 import { PLATFORMS } from "@/lib/platforms";
@@ -30,6 +35,11 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
   const [persona, setPersona] = useState<string>("");
   const [personaDetail, setPersonaDetail] = useState("");
   const [primaryPlatforms, setPrimaryPlatforms] = useState<string[]>([]);
+  const [boundariesIn, setBoundariesIn] = useState<string[]>([]);
+  const [strengths, setStrengths] = useState<string[]>([]);
+  const [timePerWeek, setTimePerWeek] = useState<string>("");
+  const [revenueTarget, setRevenueTarget] = useState<string>("");
+  const [offerMix, setOfferMix] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +59,11 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           setPersona(p.persona ?? "");
           setPersonaDetail(p.persona_detail ?? "");
           setPrimaryPlatforms(p.primary_platforms ?? []);
+          setBoundariesIn(p.boundaries_in ?? []);
+          setStrengths(p.strengths ?? []);
+          setTimePerWeek(p.time_per_week ?? "");
+          setRevenueTarget(p.revenue_target_monthly ?? "");
+          setOfferMix(p.offer_mix ?? []);
         }
         const isEmpty = !p || (!p.niche && (p.tones ?? []).length === 0 && !p.persona && (p.primary_platforms ?? []).length === 0);
         const wasDismissed = Boolean(p?.survey_dismissed_at);
@@ -80,6 +95,22 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
     setPrimaryPlatforms((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   };
 
+  const toggleBoundary = (id: string) => {
+    setBoundariesIn((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]));
+  };
+
+  const toggleStrength = (id: string) => {
+    setStrengths((prev) => {
+      if (prev.includes(id)) return prev.filter((s) => s !== id);
+      if (prev.length >= 3) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const toggleOffer = (id: string) => {
+    setOfferMix((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]));
+  };
+
   const save = async () => {
     setSaving(true);
     setError(null);
@@ -94,6 +125,11 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           persona: persona || null,
           persona_detail: personaDetail || null,
           primary_platforms: primaryPlatforms,
+          boundaries_in: boundariesIn,
+          strengths,
+          time_per_week: timePerWeek || null,
+          revenue_target_monthly: revenueTarget || null,
+          offer_mix: offerMix,
         }),
       });
       const data = await res.json();
@@ -233,6 +269,98 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
       canNext: primaryPlatforms.length >= 1,
     },
     {
+      title: "What kinds of content do you shoot?",
+      sub: "Pick everything you're comfortable with. We'll never recommend categories you don't pick — so be honest about what you actually do.",
+      content: (
+        <div className="survey-chip-grid">
+          {BOUNDARY_OPTIONS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className={`survey-chip${boundariesIn.includes(b.id) ? " survey-chip-active" : ""}`}
+              onClick={() => toggleBoundary(b.id)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      ),
+      canNext: boundariesIn.length >= 1,
+    },
+    {
+      title: "Your business reality",
+      sub: "How you work and what you sell. This shapes pricing aggressiveness and posting cadence — be honest.",
+      content: (
+        <div className="survey-business">
+          <div className="survey-section">
+            <span className="survey-section-label">Pick 1–3 strengths</span>
+            <div className="survey-chip-grid">
+              {STRENGTH_OPTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`survey-chip${strengths.includes(s.id) ? " survey-chip-active" : ""}`}
+                  onClick={() => toggleStrength(s.id)}
+                  disabled={!strengths.includes(s.id) && strengths.length >= 3}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="survey-section">
+            <span className="survey-section-label">Time you can put in per week</span>
+            <div className="survey-chip-grid">
+              {TIME_PER_WEEK_OPTIONS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`survey-chip${timePerWeek === t.id ? " survey-chip-active" : ""}`}
+                  onClick={() => setTimePerWeek(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="survey-section">
+            <span className="survey-section-label">Monthly revenue target</span>
+            <div className="survey-chip-grid">
+              {REVENUE_TARGET_OPTIONS.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`survey-chip${revenueTarget === r.id ? " survey-chip-active" : ""}`}
+                  onClick={() => setRevenueTarget(r.id)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="survey-section">
+            <span className="survey-section-label">Monetization modes you use (or want to)</span>
+            <div className="survey-chip-grid">
+              {OFFER_MIX_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  className={`survey-chip${offerMix.includes(o.id) ? " survey-chip-active" : ""}`}
+                  onClick={() => toggleOffer(o.id)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ),
+      canNext: strengths.length >= 1 && Boolean(timePerWeek) && Boolean(revenueTarget) && offerMix.length >= 1,
+    },
+    {
       title: "Review your profile",
       sub: "This is what we'll use to tune captions and recommendations. Tap any section to edit.",
       content: (
@@ -263,9 +391,54 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
             value={primaryPlatforms.length ? primaryPlatforms.map(platformName).join(" · ") : "—"}
             onEdit={() => setStep(3)}
           />
+          <ReviewSection
+            label="Content you shoot"
+            value={
+              boundariesIn.length
+                ? boundariesIn.map((b) => BOUNDARY_OPTIONS.find((x) => x.id === b)?.label ?? b).join(" · ")
+                : "—"
+            }
+            onEdit={() => setStep(4)}
+          />
+          <ReviewSection
+            label="Strengths"
+            value={
+              strengths.length
+                ? strengths.map((s) => STRENGTH_OPTIONS.find((x) => x.id === s)?.label ?? s).join(" · ")
+                : "—"
+            }
+            onEdit={() => setStep(5)}
+          />
+          <ReviewSection
+            label="Time per week"
+            value={timePerWeek ? (TIME_PER_WEEK_OPTIONS.find((x) => x.id === timePerWeek)?.label ?? timePerWeek) : "—"}
+            onEdit={() => setStep(5)}
+          />
+          <ReviewSection
+            label="Revenue target"
+            value={revenueTarget ? (REVENUE_TARGET_OPTIONS.find((x) => x.id === revenueTarget)?.label ?? revenueTarget) : "—"}
+            onEdit={() => setStep(5)}
+          />
+          <ReviewSection
+            label="Monetization modes"
+            value={
+              offerMix.length
+                ? offerMix.map((o) => OFFER_MIX_OPTIONS.find((x) => x.id === o)?.label ?? o).join(" · ")
+                : "—"
+            }
+            onEdit={() => setStep(5)}
+          />
         </div>
       ),
-      canNext: Boolean(niche) && tones.length >= 1 && primaryPlatforms.length >= 1,
+      canNext:
+        Boolean(niche) &&
+        tones.length >= 1 &&
+        primaryPlatforms.length >= 1 &&
+        boundariesIn.length >= 1 &&
+        strengths.length >= 1 &&
+        Boolean(timePerWeek) &&
+        Boolean(revenueTarget) &&
+        offerMix.length >= 1,
     },
   ];
 
@@ -280,7 +453,9 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           <div className="survey-welcome">
             <span className="survey-welcome-eyebrow">Welcome to Postwise</span>
             <p className="survey-welcome-text">
-              One-time setup: 4 quick questions so captions sound like you.
+              One-time setup: a few quick questions about your niche, voice,
+              what you shoot, and how you monetize. The strategist uses this to
+              tune every caption and recommendation to you.
               Skip if you&rsquo;d rather get straight to the tool — you can fill this in later under Profile.
             </p>
           </div>

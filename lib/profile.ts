@@ -8,6 +8,12 @@ export type CreatorProfile = {
   primary_platforms: string[];
   audience_size?: Record<string, number> | null;
   survey_dismissed_at?: string | null;
+  // Extended personalization
+  boundaries_in: string[];
+  strengths: string[];
+  time_per_week?: string | null;
+  revenue_target_monthly?: string | null;
+  offer_mix: string[];
   created_at?: string;
   updated_at?: string;
 };
@@ -52,6 +58,64 @@ export const PERSONA_OPTIONS = [
   { id: "other", label: "Other (describe)" },
 ];
 
+export const BOUNDARY_OPTIONS = [
+  { id: "lifestyle", label: "Lifestyle / fully-clothed content" },
+  { id: "lingerie-implied", label: "Lingerie / implied / suggestive" },
+  { id: "topless-artistic", label: "Topless / artistic boudoir" },
+  { id: "solo-nude", label: "Solo nude" },
+  { id: "solo-explicit", label: "Solo explicit (toys / masturbation)" },
+  { id: "partnered-bg", label: "Partnered (B/G)" },
+  { id: "partnered-gg", label: "Partnered (G/G)" },
+  { id: "group", label: "Group content" },
+  { id: "outdoor-public", label: "Outdoor / public taboo" },
+  { id: "kink-bdsm", label: "Specific kinks (BDSM, fetish)" },
+  { id: "customs", label: "Custom commissions" },
+  { id: "sexting", label: "Sexting / messaging" },
+  { id: "voice-audio", label: "Voice notes / audio" },
+  { id: "live-cam", label: "Live cam / video calls" },
+];
+
+export const STRENGTH_OPTIONS = [
+  { id: "photography", label: "Photography / aesthetic eye" },
+  { id: "storytelling", label: "Storytelling / writing" },
+  { id: "humor", label: "Humor / banter" },
+  { id: "dominance", label: "Dominance / direction" },
+  { id: "softness", label: "Softness / nurturing" },
+  { id: "education", label: "Educational / how-to" },
+  { id: "lifestyle", label: "Lifestyle vlogging" },
+  { id: "wit", label: "Quick wit / spontaneity" },
+  { id: "production", label: "High production quality" },
+  { id: "consistency", label: "Consistency / discipline" },
+];
+
+export const TIME_PER_WEEK_OPTIONS = [
+  { id: "lt5", label: "Less than 5 hours/week (light hobby)" },
+  { id: "5-10", label: "5–10 hours/week (side hustle)" },
+  { id: "10-20", label: "10–20 hours/week (part-time business)" },
+  { id: "20plus", label: "20+ hours/week (full-time)" },
+];
+
+export const REVENUE_TARGET_OPTIONS = [
+  { id: "lt500", label: "Less than $500/mo (testing the waters)" },
+  { id: "500-2k", label: "$500–$2K/mo (consistent side income)" },
+  { id: "2k-5k", label: "$2K–$5K/mo (replacing a job)" },
+  { id: "5k-15k", label: "$5K–$15K/mo (real business)" },
+  { id: "15kplus", label: "$15K+/mo (top-tier)" },
+];
+
+export const OFFER_MIX_OPTIONS = [
+  { id: "subscription", label: "Monthly subscription" },
+  { id: "ppv", label: "PPV unlocks" },
+  { id: "tip-unlock", label: "Tip-unlock posts" },
+  { id: "bundles", label: "Bundles" },
+  { id: "customs", label: "Custom commissions" },
+  { id: "messaging", label: "Messaging / sexting club" },
+  { id: "voice-audio", label: "Voice / audio content" },
+  { id: "premium-tier", label: "Premium tier / VIP" },
+  { id: "live-cam", label: "Live cam / video calls" },
+  { id: "evergreen", label: "Evergreen store (ManyVids etc.)" },
+];
+
 export const PRIMARY_PLATFORMS_OPTIONS = [
   "instagram",
   "tiktok",
@@ -71,8 +135,11 @@ export const PRIMARY_PLATFORMS_OPTIONS = [
 
 export function profileIsEmpty(p: CreatorProfile | null | undefined): boolean {
   if (!p) return true;
-  return !p.niche && p.tones.length === 0 && !p.persona && p.primary_platforms.length === 0;
+  return !p.niche && (p.tones?.length ?? 0) === 0 && !p.persona && (p.primary_platforms?.length ?? 0) === 0;
 }
+
+const labelOf = <T extends { id: string; label: string }>(opts: T[], id: string) =>
+  opts.find((o) => o.id === id)?.label ?? id;
 
 /**
  * Returns a strategist-ready summary block for injection into the system prompt
@@ -89,9 +156,15 @@ export function profileSummaryForPrompt(p: CreatorProfile | null | undefined): s
     const detail = p!.persona_detail ? ` — ${p!.persona_detail}` : "";
     lines.push(`- persona: ${p!.persona}${detail}`);
   }
-  if (p!.tones.length > 0) lines.push(`- tones (use a mix of these in captions): ${p!.tones.join(", ")}`);
-  if (p!.primary_platforms.length > 0) {
-    lines.push(`- creator actively posts on: ${p!.primary_platforms.join(", ")} — bias recommendations toward these when otherwise tied`);
+  if ((p!.tones?.length ?? 0) > 0) {
+    lines.push(`- tones (mix in captions): ${p!.tones.join(", ")}`);
+  }
+  if ((p!.strengths?.length ?? 0) > 0) {
+    const ss = p!.strengths.map((s) => labelOf(STRENGTH_OPTIONS, s)).join(", ");
+    lines.push(`- creator strengths (lean into these in captions and content suggestions): ${ss}`);
+  }
+  if ((p!.primary_platforms?.length ?? 0) > 0) {
+    lines.push(`- actively posts on: ${p!.primary_platforms.join(", ")} — prioritize these when otherwise tied`);
   }
   if (p!.audience_size && Object.keys(p!.audience_size).length > 0) {
     const sizes = Object.entries(p!.audience_size)
@@ -99,9 +172,25 @@ export function profileSummaryForPrompt(p: CreatorProfile | null | undefined): s
       .join(", ");
     lines.push(`- audience size by platform: ${sizes}`);
   }
+  if ((p!.boundaries_in?.length ?? 0) > 0) {
+    const bs = p!.boundaries_in.map((b) => labelOf(BOUNDARY_OPTIONS, b)).join(", ");
+    lines.push(`- content this creator IS comfortable shooting: ${bs}`);
+    lines.push(`  (HARD RULE: do NOT recommend content categories not in this list. Don't suggest customs if customs aren't here, partnered if not here, etc.)`);
+  }
+  if ((p!.offer_mix?.length ?? 0) > 0) {
+    const om = p!.offer_mix.map((o) => labelOf(OFFER_MIX_OPTIONS, o)).join(", ");
+    lines.push(`- monetization modes the creator uses: ${om}`);
+    lines.push(`  (Only suggest pricing for offer types in this list. Skip suggesting customs/messaging/etc. if not enabled here.)`);
+  }
+  if (p!.time_per_week) {
+    lines.push(`- time available per week: ${labelOf(TIME_PER_WEEK_OPTIONS, p!.time_per_week)} — keep cadence advice realistic for this`);
+  }
+  if (p!.revenue_target_monthly) {
+    lines.push(`- revenue target: ${labelOf(REVENUE_TARGET_OPTIONS, p!.revenue_target_monthly)} — scale pricing aggressiveness to match (low target = optimize unlock rate over per-piece price; high target = push higher prices and premium tiers)`);
+  }
   lines.push(
     "",
-    "Adjust caption voice and recommendation priority to match this profile. The persona and tones are non-negotiable — captions must sound like this creator's voice, not a generic creator's voice."
+    "Adjust caption voice and recommendation priority to match this profile. The persona, tones, boundaries, and offer mix are non-negotiable — captions must sound like THIS creator, and recommendations must respect what they actually do and sell."
   );
   return lines.join("\n");
 }

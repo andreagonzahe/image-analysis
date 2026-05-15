@@ -2466,6 +2466,27 @@ h1.title {
   justify-content: flex-end;
 }
 
+/* Multi-section step (e.g. "Your business reality") */
+.survey-business {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.survey-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.survey-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 /* Profile settings page */
 .profile-hero {
   display: flex;
