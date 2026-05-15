@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
 import { getBatch, listJobsForBatch } from "@/lib/jobs";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
-import { getConnectionForUser, getTemporaryLink } from "@/lib/dropbox";
 
 export const runtime = "nodejs";
 
@@ -92,27 +91,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
-    const dropboxRows = rows.filter(
-      (r) => r.image_source === "dropbox" && r.image_external_id
-    );
-    const urlByFileId: Record<string, string> = {};
-    if (dropboxRows.length > 0) {
-      const conn = await getConnectionForUser(userId);
-      if (conn) {
-        const linkResults = await Promise.allSettled(
-          dropboxRows.map(async (r) => ({
-            id: r.image_external_id as string,
-            link: await getTemporaryLink(conn.access_token, r.image_external_id as string),
-          }))
-        );
-        for (const r of linkResults) {
-          if (r.status === "fulfilled" && r.value.link) {
-            urlByFileId[r.value.id] = r.value.link;
-          }
-        }
-      }
-    }
-
+    // Dropbox-sourced rows go through the thumbnail proxy so HEIC and other
+    // non-web formats render in the browser. The proxy fetches a JPEG
+    // thumbnail server-side and streams it.
     recentPosts = rows.map((r) => ({
       id: r.id as string,
       content_rating: r.content_rating as string,
@@ -121,7 +102,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       image_source: r.image_source as string,
       image_url:
         r.image_source === "dropbox" && r.image_external_id
-          ? urlByFileId[r.image_external_id as string] ?? null
+          ? `/api/dropbox/thumbnail/${encodeURIComponent(r.image_external_id as string)}?size=w256h256`
           : r.image_path
             ? urlByPath[r.image_path as string] ?? null
             : null,

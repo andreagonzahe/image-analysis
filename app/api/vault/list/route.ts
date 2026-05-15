@@ -1,18 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
-import { getConnectionForUser, getTemporaryLink } from "@/lib/dropbox";
 
 export const runtime = "nodejs";
 
 const BUCKET = "vault-images";
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
-
-// Dropbox temp links live 4 hours. We generate them in parallel with a soft
-// limit so a 5000-item vault doesn't make ~5000 simultaneous Dropbox API
-// calls. Anything past this gets a null url and won't render a preview;
-// could be replaced with on-demand fetch later if needed.
-const MAX_DROPBOX_PREVIEW_LINKS = 200;
 
 type PostRow = {
   id: string;
@@ -69,35 +62,16 @@ export async function GET() {
     }
   }
 
-  // 2. Dropbox-sourced rows: get a temp link per file (parallel, capped).
-  // The vault previously had no way to render Dropbox items because they
-  // never get an image_path — now we fetch a 4hr temp URL on the fly.
-  const dropboxRows = rows
-    .filter((r) => r.image_source === "dropbox" && r.image_external_id)
-    .slice(0, MAX_DROPBOX_PREVIEW_LINKS);
-  const urlByFileId: Record<string, string> = {};
-  if (dropboxRows.length > 0) {
-    const conn = await getConnectionForUser(userId);
-    if (conn) {
-      const results = await Promise.allSettled(
-        dropboxRows.map(async (r) => {
-          const link = await getTemporaryLink(conn.access_token, r.image_external_id!);
-          return { id: r.image_external_id!, link };
-        })
-      );
-      for (const result of results) {
-        if (result.status === "fulfilled" && result.value.link) {
-          urlByFileId[result.value.id] = result.value.link;
-        }
-      }
-    }
-  }
-
+  // 2. Dropbox-sourced rows: route through the thumbnail proxy. The browser
+  // can't render HEIC / HEIF / RAW served directly from Dropbox temp links;
+  // /api/dropbox/thumbnail/<file-id> asks Dropbox for a JPEG thumbnail
+  // server-side and streams it back. No upfront fetching needed — the URL
+  // resolves lazily when the <img> requests it.
   const posts = rows.map((r) => ({
     ...r,
     image_url:
       r.image_source === "dropbox" && r.image_external_id
-        ? urlByFileId[r.image_external_id] ?? null
+        ? `/api/dropbox/thumbnail/${encodeURIComponent(r.image_external_id)}?size=w640h480`
         : r.image_path
           ? urlByPath[r.image_path] ?? null
           : null,

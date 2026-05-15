@@ -328,3 +328,42 @@ export async function getTemporaryLink(accessToken: string, fileId: string): Pro
   const data = await res.json();
   return data.link as string;
 }
+
+/**
+ * Fetch a thumbnail (JPEG) for a Dropbox file. Works for HEIC, RAW, and other
+ * formats browsers can't natively render — Dropbox does the conversion on
+ * their side and we get back web-safe bytes.
+ *
+ * Sizes (per Dropbox docs):
+ *   w32h32, w64h64, w128h128, w256h256, w480h320,
+ *   w640h480, w960h640, w1024h768, w2048h1536
+ *
+ * Returns raw bytes + content-type for streaming to the client.
+ */
+export async function getThumbnailBytes(
+  accessToken: string,
+  fileId: string,
+  size: string = "w640h480"
+): Promise<{ bytes: Buffer; contentType: string } | null> {
+  const res = await fetch("https://content.dropboxapi.com/2/files/get_thumbnail_v2", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      // Endpoint args are serialized in this header per Dropbox's "content"
+      // API convention; the body is empty.
+      "Dropbox-API-Arg": JSON.stringify({
+        resource: { ".tag": "path", path: fileId },
+        format: { ".tag": "jpeg" },
+        size: { ".tag": size },
+      }),
+    },
+  });
+  if (!res.ok) {
+    return null;
+  }
+  const ab = await res.arrayBuffer();
+  return {
+    bytes: Buffer.from(ab),
+    contentType: res.headers.get("content-type") ?? "image/jpeg",
+  };
+}
