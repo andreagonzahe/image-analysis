@@ -283,7 +283,7 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
               <Link key={p.id} href={`/vault?focus=${p.id}`} className="status-recent-card">
                 <div className="status-recent-thumb">
                   {p.image_url ? (
-                    <img src={p.image_url} alt="" />
+                    <img src={p.image_url} alt="" loading="lazy" decoding="async" />
                   ) : (
                     <div className="status-recent-thumb-placeholder" />
                   )}

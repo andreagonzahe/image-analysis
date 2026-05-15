@@ -310,9 +310,9 @@ function VaultCard({
     <article className="vault-card">
       <div className="vault-thumb">
         {thumbUrl ? (
-          <img src={thumbUrl} alt="" />
+          <img src={thumbUrl} alt="" loading="lazy" decoding="async" />
         ) : post.remote_image_url ? (
-          <img src={post.remote_image_url} alt="" />
+          <img src={post.remote_image_url} alt="" loading="lazy" decoding="async" />
         ) : (
           <div className="vault-thumb-placeholder">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
