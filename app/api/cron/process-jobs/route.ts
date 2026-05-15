@@ -22,14 +22,12 @@ import type { ImageTags } from "@/lib/captioner";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Replicate's normal-tier rate limit is ~600 predictions/min. Their
-// throttled tier (when account credit drops below $5) is 6/min with a
-// burst of 1. We keep this conservative at 2 jobs/tick because each
-// analyze_image job fires up to 3 predictions in parallel (NSFW + caption +
-// strategist), so 2 jobs = ~6 concurrent predictions — well within either
-// tier. Bump only if you're consistently above $20 in Replicate credit and
-// want faster throughput.
-const JOBS_PER_TICK = 2;
+// One job per tick. Even at this rate the chain-fired client trigger keeps
+// the worker busy. Empirically: trying to run 2+ in parallel hits Replicate
+// concurrent-request limits even after the < $5 throttle lifts, because
+// analyze_image internally fires 3 Replicate calls. Sequential is dramatically
+// more reliable than concurrent here — fewer 429s = fewer wasted attempts.
+const JOBS_PER_TICK = 1;
 
 const NO_NUDITY_PLATFORMS = PLATFORMS.filter((p) => p.policy === "no-nudity").map((p) => p.id);
 const PAID_PLATFORMS = PLATFORMS.filter((p) => p.paid).map((p) => p.id);
@@ -105,15 +103,26 @@ export async function POST(req: Request) {
 
   let done = 0;
   let failed = 0;
-  results.forEach((r) => {
-    if (r.status === "fulfilled") done++;
-    else failed++;
+  const this_tick_errors: Array<{ kind: string; name: string; error: string }> = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      done++;
+    } else {
+      failed++;
+      const job = claimed[i];
+      this_tick_errors.push({
+        kind: job.kind,
+        name: String(job.input?.name ?? job.id),
+        error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+      });
+    }
   });
 
   return NextResponse.json({
     processed: claimed.length,
     done,
     failed,
+    this_tick_errors,
     recent_failures: recentFailures ?? [],
   });
 }
@@ -203,11 +212,13 @@ async function runAnalyze(job: Job): Promise<void> {
   // Avoids fetching + decoding the source three times when the file is HEIC.
   const ready = await prepImageForReplicate(url, String(job.input.name ?? ""));
 
-  const [nsfw, captioned, profile] = await Promise.all([
-    classifyNsfw(ready, job.user_id),
-    captionImage(ready, job.user_id),
-    fetchProfile(),
-  ]);
+  // Run Replicate calls SEQUENTIALLY (NSFW then captioner) to avoid burst
+  // concurrent-limit 429s. fetchProfile is Supabase, runs in parallel with
+  // both since it's a different upstream.
+  const profilePromise = fetchProfile();
+  const nsfw = await classifyNsfw(ready, job.user_id);
+  const captioned = await captionImage(ready, job.user_id);
+  const profile = await profilePromise;
 
   const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, job.user_id);
   const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);

@@ -13,6 +13,7 @@ const isAlwaysAllowed = createRouteMatcher([
   "/sign-up(.*)",
   "/api/auth-state",
   "/api/health(.*)",
+  "/api/debug/whoami", // lets a denied user check WHY they were denied
 ]);
 
 export default CLERK_ENABLED
