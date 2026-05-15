@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
 import { getBatch, listJobsForBatch } from "@/lib/jobs";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
+import { getConnectionForUser, getTemporaryLink } from "@/lib/dropbox";
 
 export const runtime = "nodejs";
+
+const STORAGE_BUCKET = "vault-images";
+const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 /**
  * Live status for a job batch. Returns the batch row + counts by job kind +
@@ -55,15 +59,73 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   // Pull the 6 most recent post records to surface in the live preview area
-  let recentPosts: Array<{ id: string; content_rating: string; primary_platform: string; image_external_id: string | null; image_source: string }> = [];
+  let recentPosts: Array<{
+    id: string;
+    content_rating: string;
+    primary_platform: string;
+    image_external_id: string | null;
+    image_source: string;
+    image_url: string | null;
+  }> = [];
   if (latestDoneAnalyses.length > 0) {
     const supabase = getSupabase();
     const { data } = await supabase
       .from("posts")
-      .select("id, content_rating, primary_platform, image_external_id, image_source")
+      .select("id, content_rating, primary_platform, image_external_id, image_source, image_path")
       .in("id", latestDoneAnalyses.slice(-6))
       .eq("user_id", userId);
-    recentPosts = (data ?? []) as typeof recentPosts;
+    const rows = data ?? [];
+
+    // Resolve a usable preview URL per post:
+    //   - Supabase Storage: short-lived signed URL
+    //   - Dropbox: 4hr temporary link
+    const supabasePaths = rows
+      .filter((r) => r.image_source === "supabase_storage" && r.image_path)
+      .map((r) => r.image_path as string);
+    const urlByPath: Record<string, string> = {};
+    if (supabasePaths.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrls(supabasePaths, SIGNED_URL_TTL_SECONDS);
+      for (const s of signed ?? []) {
+        if (s.path && s.signedUrl) urlByPath[s.path] = s.signedUrl;
+      }
+    }
+
+    const dropboxRows = rows.filter(
+      (r) => r.image_source === "dropbox" && r.image_external_id
+    );
+    const urlByFileId: Record<string, string> = {};
+    if (dropboxRows.length > 0) {
+      const conn = await getConnectionForUser(userId);
+      if (conn) {
+        const linkResults = await Promise.allSettled(
+          dropboxRows.map(async (r) => ({
+            id: r.image_external_id as string,
+            link: await getTemporaryLink(conn.access_token, r.image_external_id as string),
+          }))
+        );
+        for (const r of linkResults) {
+          if (r.status === "fulfilled" && r.value.link) {
+            urlByFileId[r.value.id] = r.value.link;
+          }
+        }
+      }
+    }
+
+    recentPosts = rows.map((r) => ({
+      id: r.id as string,
+      content_rating: r.content_rating as string,
+      primary_platform: r.primary_platform as string,
+      image_external_id: (r.image_external_id as string | null) ?? null,
+      image_source: r.image_source as string,
+      image_url:
+        r.image_source === "dropbox" && r.image_external_id
+          ? urlByFileId[r.image_external_id as string] ?? null
+          : r.image_path
+            ? urlByPath[r.image_path as string] ?? null
+            : null,
+    }));
   }
 
   return NextResponse.json({

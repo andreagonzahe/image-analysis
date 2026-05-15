@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { AgeGate } from "@/components/AgeGate";
 import { ProfileSurvey } from "@/components/ProfileSurvey";
 import { SideNav } from "@/components/SideNav";
+import { BatchChecker } from "@/components/BatchChecker";
 import { isAdminUser } from "@/lib/auth";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
       <body>
         <AgeGate />
         {CLERK_ENABLED && signedIn && <ProfileSurvey />}
+        {CLERK_ENABLED && signedIn && <BatchChecker signedIn={signedIn} />}
         <div className="app-shell">
           <SideNav clerkEnabled={CLERK_ENABLED} signedIn={signedIn} isAdmin={isAdmin} />
           <div className="main-column">

@@ -26,6 +26,7 @@ type BatchStatus = {
     primary_platform: string;
     image_external_id: string | null;
     image_source: string;
+    image_url: string | null;
   }>;
 };
 
@@ -280,7 +281,14 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
           <div className="status-recent">
             {data.recent_posts.map((p) => (
               <Link key={p.id} href={`/vault?focus=${p.id}`} className="status-recent-card">
-                <span className={`rating-pill ${p.content_rating}`}>{p.content_rating}</span>
+                <div className="status-recent-thumb">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt="" />
+                  ) : (
+                    <div className="status-recent-thumb-placeholder" />
+                  )}
+                  <span className={`rating-pill ${p.content_rating}`}>{p.content_rating}</span>
+                </div>
                 <span className="status-recent-platform">{p.primary_platform}</span>
               </Link>
             ))}
