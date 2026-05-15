@@ -250,6 +250,46 @@ export async function getPost(id: string): Promise<VaultPost | undefined> {
 }
 
 /**
+ * Wipe every local vault entry from IndexedDB. Does NOT touch the cloud
+ * (use POST /api/vault/delete-all for that) — call this after the cloud
+ * wipe succeeds.
+ */
+export async function deleteAllLocalPosts(): Promise<number> {
+  const db = await getDb();
+  const all = await db.getAll("posts");
+  const tx = db.transaction("posts", "readwrite");
+  for (const p of all) {
+    await tx.store.delete(p.id);
+  }
+  await tx.done;
+  return all.length;
+}
+
+/**
+ * Convenience: nuke both cloud + local vault. UI shows a typed-confirmation
+ * dialog before this is called.
+ */
+export async function deleteEntireVault(): Promise<{
+  cloud_posts: number;
+  cloud_storage: number;
+  local_posts: number;
+}> {
+  const res = await fetch("/api/vault/delete-all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: "DELETE EVERYTHING" }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? `Delete failed (${res.status})`);
+  const localCount = await deleteAllLocalPosts();
+  return {
+    cloud_posts: data.posts_deleted ?? 0,
+    cloud_storage: data.storage_files_deleted ?? 0,
+    local_posts: localCount,
+  };
+}
+
+/**
  * Backfill: push every local post to the cloud. Useful right after sign-in to
  * migrate existing local-only entries. Reads the full image from IndexedDB and
  * uploads it as part of the sync payload.

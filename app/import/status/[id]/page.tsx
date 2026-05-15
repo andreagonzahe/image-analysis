@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type BatchStatus = {
   batch: {
@@ -30,7 +31,14 @@ type BatchStatus = {
   }>;
 };
 
-export default function StatusPage({ params }: { params: Promise<{ id: string }> }) {
+export default function StatusPageWrapper(props: { params: Promise<{ id: string }> }) {
+  // Wrap in suspense so useSearchParams works during the static render pass.
+  return <StatusPage {...props} />;
+}
+
+function StatusPage({ params }: { params: Promise<{ id: string }> }) {
+  const searchParams = useSearchParams();
+  const skippedAsDuplicate = Number(searchParams.get("skipped") ?? 0);
   // Module-scope helpers were hoisted but somehow broke after a Turbopack
   // hot reload — keeping them inside the component closure avoids any
   // hoisting weirdness across HMR cycles.
@@ -229,6 +237,11 @@ export default function StatusPage({ params }: { params: Promise<{ id: string }>
             ? `Finished. ${kept.toLocaleString()} pieces added to your vault, ${skipped.toLocaleString()} skipped as noise.`
             : `Working on "${data.batch.label}". You can close this tab — we'll keep going in the background.`}
         </p>
+        {skippedAsDuplicate > 0 && (
+          <p className="hero-sub" style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+            Skipped {skippedAsDuplicate.toLocaleString()} photo{skippedAsDuplicate === 1 ? "" : "s"} already in your vault.
+          </p>
+        )}
       </header>
 
       <div className="card status-overall">

@@ -69,9 +69,23 @@ export async function POST(req: Request) {
   const dbPath = path === "/" ? "" : path;
 
   try {
-    const files = await listAllImages(conn.access_token, dbPath, MAX_PER_IMPORT);
-    if (files.length === 0) {
+    const allFiles = await listAllImages(conn.access_token, dbPath, MAX_PER_IMPORT);
+    if (allFiles.length === 0) {
       return NextResponse.json({ error: "No images found in that folder." }, { status: 400 });
+    }
+
+    // Dedup against the user's vault: skip Dropbox files we've already
+    // analyzed and saved. Match by image_external_id (= Dropbox file ID).
+    // The user's photo library often gets re-imported when they reorganize
+    // folders; without this every retry would burn fresh Replicate credit
+    // on photos we've already processed.
+    const existingIds = await listExistingDropboxFileIds(userId);
+    const files = allFiles.filter((f) => !existingIds.has(f.id));
+    const skippedAsDuplicate = allFiles.length - files.length;
+    if (files.length === 0) {
+      return NextResponse.json({
+        error: `All ${allFiles.length} files in this folder are already in your vault. Nothing new to import.`,
+      }, { status: 400 });
     }
 
     // Cancel any prior running batches for this user before creating a new
@@ -104,9 +118,43 @@ export async function POST(req: Request) {
       }))
     );
 
-    return NextResponse.json({ batch_id: batch.id, count: files.length });
+    return NextResponse.json({
+      batch_id: batch.id,
+      count: files.length,
+      skipped_as_duplicate: skippedAsDuplicate,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/**
+ * Return the set of Dropbox file IDs already present in the user's vault.
+ * Used to skip already-analyzed photos during a re-import. Paginated to
+ * scale past Postgres's default 1000-row select cap.
+ */
+async function listExistingDropboxFileIds(userId: string): Promise<Set<string>> {
+  const supabase = getSupabase();
+  const ids = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("image_external_id")
+      .eq("user_id", userId)
+      .eq("image_source", "dropbox")
+      .not("image_external_id", "is", null)
+      .range(from, from + pageSize - 1);
+    if (error) {
+      console.warn("[import] listExistingDropboxFileIds error:", error.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    for (const r of data) {
+      if (r.image_external_id) ids.add(r.image_external_id as string);
+    }
+    if (data.length < pageSize) break;
+  }
+  return ids;
 }

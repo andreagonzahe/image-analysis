@@ -127,7 +127,11 @@ function ImportPageInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-      router.push(`/import/status/${data.batch_id}`);
+      const skipParam =
+        typeof data.skipped_as_duplicate === "number" && data.skipped_as_duplicate > 0
+          ? `?skipped=${data.skipped_as_duplicate}`
+          : "";
+      router.push(`/import/status/${data.batch_id}${skipParam}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSubmitting(false);

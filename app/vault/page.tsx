@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SignInButton } from "@clerk/nextjs";
-import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, updatePostStatus, type MergedPost, type PostStatus } from "@/lib/vault";
+import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, updatePostStatus, deleteEntireVault, type MergedPost, type PostStatus } from "@/lib/vault";
 import { PLATFORMS } from "@/lib/platforms";
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
@@ -26,6 +26,31 @@ export default function VaultPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrateMsg, setMigrateMsg] = useState<string | null>(null);
+  const [showWipeModal, setShowWipeModal] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wiping, setWiping] = useState(false);
+  const [wipeError, setWipeError] = useState<string | null>(null);
+
+  const wipeVault = async () => {
+    if (wipeConfirmText !== "DELETE EVERYTHING") return;
+    setWiping(true);
+    setWipeError(null);
+    try {
+      const result = await deleteEntireVault();
+      setPosts([]);
+      setThumbUrls({});
+      setShowWipeModal(false);
+      setWipeConfirmText("");
+      // Soft success message via the existing migrate slot.
+      setMigrateMsg(
+        `Vault wiped. Removed ${result.cloud_posts} cloud post${result.cloud_posts === 1 ? "" : "s"}, ${result.cloud_storage} stored image${result.cloud_storage === 1 ? "" : "s"}, and ${result.local_posts} local entr${result.local_posts === 1 ? "y" : "ies"}.`
+      );
+    } catch (e) {
+      setWipeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWiping(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/auth-state").then((r) => r.json()).then(setAuthState).catch(() => null);
@@ -258,7 +283,78 @@ export default function VaultPage() {
               ))}
             </div>
           )}
+
+          {posts.length > 0 && (
+            <section className="vault-danger-zone">
+              <div>
+                <h3 className="vault-danger-title">Danger zone</h3>
+                <p className="vault-danger-body">
+                  Wipe everything in your vault. Removes every analyzed post,
+                  every cloud-stored image, and the local IndexedDB copy on
+                  this device. Dropbox files themselves stay safe in your
+                  Dropbox. <strong>This cannot be undone.</strong>
+                </p>
+              </div>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  setWipeError(null);
+                  setWipeConfirmText("");
+                  setShowWipeModal(true);
+                }}
+              >
+                Delete entire vault
+              </button>
+            </section>
+          )}
         </>
+      )}
+
+      {showWipeModal && (
+        <div className="wipe-modal" role="dialog" aria-modal="true">
+          <div className="wipe-overlay" onClick={() => !wiping && setShowWipeModal(false)} aria-hidden />
+          <div className="wipe-card">
+            <h2 className="wipe-title">Delete your entire vault?</h2>
+            <p className="wipe-body">
+              You&rsquo;re about to permanently remove <strong>{posts?.length ?? 0}</strong> analyzed
+              post{posts?.length === 1 ? "" : "s"} from this app — including every cloud-stored
+              image and the local IndexedDB cache on this device.
+            </p>
+            <ul className="wipe-checklist">
+              <li><strong>Cannot be undone.</strong> There is no trash, no archive, no recovery.</li>
+              <li>Your <strong>Dropbox files stay</strong> in your Dropbox — only Postwise&rsquo;s analysis records get wiped.</li>
+              <li>You&rsquo;ll need to re-import to rebuild the vault.</li>
+            </ul>
+            <label className="wipe-confirm-label">
+              Type <code>DELETE EVERYTHING</code> to confirm:
+              <input
+                type="text"
+                value={wipeConfirmText}
+                onChange={(e) => setWipeConfirmText(e.target.value)}
+                placeholder="DELETE EVERYTHING"
+                autoFocus
+                disabled={wiping}
+              />
+            </label>
+            {wipeError && <div className="error-banner" style={{ marginTop: 12 }}>{wipeError}</div>}
+            <div className="wipe-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowWipeModal(false)}
+                disabled={wiping}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={wipeVault}
+                disabled={wipeConfirmText !== "DELETE EVERYTHING" || wiping}
+              >
+                {wiping ? "Wiping…" : "Yes, delete everything"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
