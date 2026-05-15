@@ -225,6 +225,35 @@ function PostTypeBadge({ postType }: { postType: PostType }) {
   );
 }
 
+function DistributionBadge({
+  mode,
+  rationale,
+}: {
+  mode: "wall" | "ppv" | "both";
+  rationale: string | null;
+}) {
+  const labels: Record<typeof mode, string> = {
+    wall: "Wall (paid feed only)",
+    ppv: "PPV in DMs only",
+    both: "Wall teaser + PPV DM",
+  };
+  const sub: Record<typeof mode, string> = {
+    wall: "Post to your subscribers' feed. No DM unlock — they get it as part of the sub.",
+    ppv: "Don't put this on the wall. Mass-DM it as a paid unlock.",
+    both: "Wall post (teaser/SFW-er pick from this look) + a separate PPV DM with the full version.",
+  };
+  return (
+    <div className="distribution-badge" data-mode={mode}>
+      <div className="distribution-header">
+        <span className="distribution-label">Distribution</span>
+        <span className="distribution-mode">{labels[mode]}</span>
+      </div>
+      <p className="distribution-sub">{sub[mode]}</p>
+      {rationale && <p className="distribution-rationale">{rationale}</p>}
+    </div>
+  );
+}
+
 function PpvDmMessage({ message }: { message: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -357,6 +386,9 @@ function RecBody({
       <p className="reason">{rec.reason}</p>
 
       {rec.post_type && <PostTypeBadge postType={rec.post_type} />}
+      {rec.distribution_mode && (
+        <DistributionBadge mode={rec.distribution_mode} rationale={rec.distribution_rationale ?? null} />
+      )}
       {rec.pricing_suggestion && <PriceTag pricing={rec.pricing_suggestion} />}
       {rec.ppv_dm_message && <PpvDmMessage message={rec.ppv_dm_message} />}
       {rec.strategy_alignment && <StrategyBlock text={rec.strategy_alignment} />}

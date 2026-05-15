@@ -10,14 +10,234 @@ import {
   type PostStatus,
 } from "@/lib/vault";
 import { PLATFORMS } from "@/lib/platforms";
+import type { CreatorProfile } from "@/lib/profile";
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 const platformComposeUrl = (id: string) => PLATFORMS.find((p) => p.id === id)?.composeUrl;
+const isPaidPlatform = (id: string) => Boolean(PLATFORMS.find((p) => p.id === id)?.paid);
 
-const DAILY_TARGET = 5;
+/**
+ * A "slot" is one piece of content the creator should post today.
+ * - Each social platform they actively use → 1 slot.
+ * - OnlyFans → 1 slot (single mode) or 2 slots (free + paid).
+ * - Fansly → 1 slot (single mode) or 2 slots (free + paid).
+ *
+ * The free OF/Fansly slot is filled with Tier 1-2 funnel content
+ * (lifestyle / lingerie teaser). The paid slot pulls Tier 3+ paywall
+ * content. Social slots match by platform recommendation.
+ */
+type SlotKind =
+  | { kind: "social"; platform: string; label: string }
+  | { kind: "of_free" }
+  | { kind: "of_paid" }
+  | { kind: "of_single" }
+  | { kind: "fansly_free" }
+  | { kind: "fansly_paid" }
+  | { kind: "fansly_single" };
+
+type Slot = {
+  id: string;
+  title: string;
+  subtitle: string;
+  platformId: string; // canonical platform id for compose links / matching
+  kind: SlotKind["kind"];
+  paid: boolean;
+};
+
+type SlotFill = {
+  slot: Slot;
+  post: MergedPost | null;
+};
+
+function buildSlots(profile: CreatorProfile | null): Slot[] {
+  const slots: Slot[] = [];
+  const platforms = profile?.primary_platforms ?? [];
+
+  // OnlyFans
+  if (platforms.includes("onlyfans")) {
+    if (profile?.of_account_mode === "free_paid_pair") {
+      slots.push({
+        id: "of-free",
+        title: "OnlyFans — Free promo",
+        subtitle: "Funnel content. Tier 1–2, drives subs to your paid account.",
+        platformId: "onlyfans",
+        kind: "of_free",
+        paid: true,
+      });
+      slots.push({
+        id: "of-paid",
+        title: "OnlyFans — Paid sub",
+        subtitle: "Subscriber feed. Tier 3+ wall posts or PPV DMs.",
+        platformId: "onlyfans",
+        kind: "of_paid",
+        paid: true,
+      });
+    } else {
+      slots.push({
+        id: "of-single",
+        title: "OnlyFans",
+        subtitle: "Wall post or PPV — depends on the piece.",
+        platformId: "onlyfans",
+        kind: "of_single",
+        paid: true,
+      });
+    }
+  }
+
+  // Fansly
+  if (platforms.includes("fansly")) {
+    if (profile?.fansly_account_mode === "free_paid_pair") {
+      slots.push({
+        id: "fansly-free",
+        title: "Fansly — Free promo",
+        subtitle: "Funnel content. Tier 1–2 teasers.",
+        platformId: "fansly",
+        kind: "fansly_free",
+        paid: true,
+      });
+      slots.push({
+        id: "fansly-paid",
+        title: "Fansly — Paid sub",
+        subtitle: "Tier 3+ wall posts or PPV DMs.",
+        platformId: "fansly",
+        kind: "fansly_paid",
+        paid: true,
+      });
+    } else {
+      slots.push({
+        id: "fansly-single",
+        title: "Fansly",
+        subtitle: "Wall post or PPV — depends on the piece.",
+        platformId: "fansly",
+        kind: "fansly_single",
+        paid: true,
+      });
+    }
+  }
+
+  // Every active social/free platform gets one slot.
+  for (const id of platforms) {
+    if (id === "onlyfans" || id === "fansly") continue;
+    slots.push({
+      id: `social-${id}`,
+      title: platformName(id),
+      subtitle: isPaidPlatform(id) ? "Paid platform." : "Daily social post.",
+      platformId: id,
+      kind: "social",
+      paid: isPaidPlatform(id),
+    });
+  }
+
+  return slots;
+}
+
+/**
+ * Does this vault item have any recommendation (primary or alternative) for
+ * the given platform?
+ */
+function postHasPlatform(post: MergedPost, platformId: string): boolean {
+  if (post.primary_platform === platformId) return true;
+  return (post.analysis.alternatives ?? []).some((a) => a.platform === platformId);
+}
+
+/**
+ * Score how well a post fits a slot. Higher = better fit. Returns -1 if
+ * the post is not eligible at all for this slot.
+ */
+function scorePostForSlot(post: MergedPost, slot: Slot): number {
+  const tier = post.analysis.content_tier ?? 1;
+
+  switch (slot.kind) {
+    case "of_free":
+    case "fansly_free": {
+      // Free promo accounts post Tier 1-2 funnel content. Don't waste
+      // paywall-tier (3+) content on a free account.
+      if (tier > 2) return -1;
+      let s = 100; // baseline for matching tier
+      // Bonus if a paid platform is the strategist's primary — means this
+      // image was shot for the paid funnel and the free account is the
+      // teaser drop. Even better if the matching paid platform is OF/Fansly.
+      if (post.primary_platform === slot.platformId) s += 30;
+      else if (postHasPlatform(post, slot.platformId)) s += 10;
+      // Recency: older pending pieces get a small flush bonus.
+      const ageDays = (Date.now() - post.created_at) / (1000 * 60 * 60 * 24);
+      s += Math.min(ageDays, 30);
+      return s;
+    }
+    case "of_paid":
+    case "fansly_paid": {
+      // Paid feed needs Tier 3+ content + the platform actually recommended.
+      if (tier < 3) return -1;
+      if (!postHasPlatform(post, slot.platformId)) return -1;
+      let s = 100;
+      if (post.primary_platform === slot.platformId) s += 50;
+      // Higher tier = higher value; prioritize.
+      s += tier * 10;
+      // Existing price signal — let the strategist's pricing nudge order.
+      if (post.primary_price_low > 0) s += Math.min(post.primary_price_low, 40);
+      const ageDays = (Date.now() - post.created_at) / (1000 * 60 * 60 * 24);
+      s += Math.min(ageDays, 20);
+      return s;
+    }
+    case "of_single":
+    case "fansly_single": {
+      // Single-account mode: any tier works, but match the platform.
+      if (!postHasPlatform(post, slot.platformId)) return -1;
+      let s = 100;
+      if (post.primary_platform === slot.platformId) s += 50;
+      s += tier * 5;
+      if (post.primary_price_low > 0) s += Math.min(post.primary_price_low, 40);
+      const ageDays = (Date.now() - post.created_at) / (1000 * 60 * 60 * 24);
+      s += Math.min(ageDays, 20);
+      return s;
+    }
+    case "social": {
+      // Social slot: the platform must be in the recommendation set, and
+      // (funnel rule) Tier 3+ content should never sit on free social.
+      if (!postHasPlatform(post, slot.platformId)) return -1;
+      if (tier >= 3 && !slot.paid) return -1;
+      let s = 100;
+      if (post.primary_platform === slot.platformId) s += 50;
+      // Lower tier = better fit for social funnel
+      s += (3 - tier) * 5;
+      const ageDays = (Date.now() - post.created_at) / (1000 * 60 * 60 * 24);
+      s += Math.min(ageDays, 20);
+      return s;
+    }
+  }
+}
+
+/**
+ * Greedy assignment: each post can fill at most one slot per day so the
+ * creator never posts the same image to two places in the same calendar.
+ */
+function assignSlots(slots: Slot[], pending: MergedPost[]): SlotFill[] {
+  const taken = new Set<string>();
+  const fills: SlotFill[] = [];
+  // Process in slot order — paid OF/Fansly first (highest revenue impact),
+  // then social. The slots array is already roughly in this order.
+  for (const slot of slots) {
+    let best: { post: MergedPost; score: number } | null = null;
+    for (const post of pending) {
+      if (taken.has(post.id)) continue;
+      const score = scorePostForSlot(post, slot);
+      if (score < 0) continue;
+      if (!best || score > best.score) best = { post, score };
+    }
+    if (best) {
+      taken.add(best.post.id);
+      fills.push({ slot, post: best.post });
+    } else {
+      fills.push({ slot, post: null });
+    }
+  }
+  return fills;
+}
 
 export default function TodayPage() {
   const [posts, setPosts] = useState<MergedPost[] | null>(null);
+  const [profile, setProfile] = useState<CreatorProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +252,14 @@ export default function TodayPage() {
         setThumbUrls(urls);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.enabled && data.profile) setProfile(data.profile as CreatorProfile);
+        setProfileLoaded(true);
+      })
+      .catch(() => setProfileLoaded(true));
     return () => {
       cancelled = true;
     };
@@ -44,7 +272,7 @@ export default function TodayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setStatus = async (id: string, status: PostStatus) => {
+  const setStatus = async (id: string, status: PostStatus, postedOn?: string) => {
     setPosts((curr) =>
       curr
         ? curr.map((p) =>
@@ -53,38 +281,27 @@ export default function TodayPage() {
                   ...p,
                   status,
                   posted_at: status === "posted" ? new Date().toISOString() : null,
-                  posted_on_platform: status === "posted" ? p.primary_platform : null,
+                  posted_on_platform: status === "posted" ? postedOn ?? p.primary_platform : null,
                 }
               : p
           )
         : curr
     );
     try {
-      await updatePostStatus(id, { status, posted_on_platform: status === "posted" ? null : null });
+      await updatePostStatus(id, {
+        status,
+        posted_on_platform: status === "posted" ? postedOn ?? null : null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
   const today = useMemo(() => {
-    if (!posts) return { plan: [], stats: null };
-    // Today's plan: prioritize PENDING items, score by funnel value.
-    // Score: paid platforms (high revenue potential) first; then tier (3+ = paywall, important);
-    // then oldest pending (FIFO so backlog doesn't pile up).
+    if (!posts || !profileLoaded) return null;
+    const slots = buildSlots(profile);
     const pending = posts.filter((p) => p.status === "pending");
-    const scored = pending.map((p) => {
-      let score = 0;
-      const platform = PLATFORMS.find((pl) => pl.id === p.primary_platform);
-      if (platform?.paid) score += 100;
-      if ((p.analysis.content_tier ?? 1) >= 3) score += 50;
-      if (p.primary_price_low > 0) score += Math.min(p.primary_price_low, 40);
-      // older items get a small recency boost so the backlog flushes
-      const ageDays = (Date.now() - p.created_at) / (1000 * 60 * 60 * 24);
-      score += Math.min(ageDays * 2, 20);
-      return { ...p, _score: score };
-    });
-    scored.sort((a, b) => b._score - a._score);
-    const plan = scored.slice(0, DAILY_TARGET);
+    const fills = assignSlots(slots, pending);
 
     const postedToday = posts.filter((p) => {
       if (p.status !== "posted" || !p.posted_at) return false;
@@ -93,19 +310,35 @@ export default function TodayPage() {
       return t.toDateString() === d.toDateString();
     }).length;
 
-    const postedThisWeek = posts.filter((p) => {
-      if (p.status !== "posted" || !p.posted_at) return false;
-      const t = new Date(p.posted_at).getTime();
-      return Date.now() - t < 7 * 24 * 60 * 60 * 1000;
-    }).length;
+    const filledCount = fills.filter((f) => f.post !== null).length;
+    const totalSlots = fills.length;
 
-    const pendingTotal = pending.length;
+    // Bonus pieces: pending content not assigned to a slot today, sorted by
+    // funnel value. So the creator can see what else is in their backlog.
+    const usedIds = new Set(fills.filter((f) => f.post).map((f) => f.post!.id));
+    const bonusPool = pending.filter((p) => !usedIds.has(p.id));
+    const bonus = bonusPool
+      .slice()
+      .sort((a, b) => {
+        const tierDiff = (b.analysis.content_tier ?? 1) - (a.analysis.content_tier ?? 1);
+        if (tierDiff !== 0) return tierDiff;
+        return b.primary_price_low - a.primary_price_low;
+      })
+      .slice(0, 6);
 
     return {
-      plan,
-      stats: { postedToday, postedThisWeek, pendingTotal },
+      fills,
+      bonus,
+      stats: {
+        postedToday,
+        filledCount,
+        totalSlots,
+        backlog: pending.length,
+      },
     };
-  }, [posts]);
+  }, [posts, profile, profileLoaded]);
+
+  // ---------- Loading / empty states ----------
 
   if (posts === null && !error) {
     return (
@@ -113,6 +346,24 @@ export default function TodayPage() {
         <header className="hero">
           <h1 className="title">Today</h1>
           <p className="hero-sub">Loading your queue…</p>
+        </header>
+      </main>
+    );
+  }
+
+  if (today && today.fills.length === 0) {
+    return (
+      <main>
+        <header className="hero">
+          <h1 className="title">Today</h1>
+          <p className="hero-sub">
+            We don&rsquo;t know which platforms to fill slots for yet. Set your active
+            platforms in your profile and we&rsquo;ll build a daily calendar around them.
+          </p>
+          <div className="cta-row" style={{ justifyContent: "center" }}>
+            <Link href="/settings/profile" className="btn btn-primary">Set up profile</Link>
+            <Link href="/" className="btn btn-secondary">Analyze content</Link>
+          </div>
         </header>
       </main>
     );
@@ -134,101 +385,208 @@ export default function TodayPage() {
     );
   }
 
+  if (!today) return null;
+
+  const paidFills = today.fills.filter((f) => f.slot.paid);
+  const socialFills = today.fills.filter((f) => !f.slot.paid);
+
   return (
     <main>
       <header className="today-hero">
         <div>
-          <h1 className="title" style={{ margin: 0, marginBottom: 6 }}>Today&rsquo;s plan</h1>
+          <h1 className="title" style={{ margin: 0, marginBottom: 6 }}>
+            Today&rsquo;s plan
+          </h1>
           <p className="hero-sub" style={{ margin: 0 }}>
-            {today.plan.length > 0
-              ? `Top ${today.plan.length} pieces to post today, ranked by funnel value. Tick them off as you go.`
-              : "Nothing pending. Analyze more content or come back tomorrow."}
+            One slot per platform you actively post on. Tick each off as you post.
           </p>
         </div>
-        {today.stats && (
-          <div className="today-stats">
-            <div className="today-stat">
-              <span className="today-stat-num">{today.stats.postedToday}</span>
-              <span className="today-stat-label">Posted today</span>
-            </div>
-            <div className="today-stat">
-              <span className="today-stat-num">{today.stats.postedThisWeek}</span>
-              <span className="today-stat-label">This week</span>
-            </div>
-            <div className="today-stat">
-              <span className="today-stat-num">{today.stats.pendingTotal}</span>
-              <span className="today-stat-label">In backlog</span>
-            </div>
+        <div className="today-stats">
+          <div className="today-stat">
+            <span className="today-stat-num">
+              {today.stats.filledCount}<span className="today-stat-num-sub">/{today.stats.totalSlots}</span>
+            </span>
+            <span className="today-stat-label">Slots filled</span>
           </div>
-        )}
+          <div className="today-stat">
+            <span className="today-stat-num">{today.stats.postedToday}</span>
+            <span className="today-stat-label">Posted today</span>
+          </div>
+          <div className="today-stat">
+            <span className="today-stat-num">{today.stats.backlog}</span>
+            <span className="today-stat-label">In backlog</span>
+          </div>
+        </div>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="today-list">
-        {today.plan.map((post, i) => (
-          <TodayCard
-            key={post.id}
-            post={post}
-            index={i}
-            thumbUrl={thumbUrls[post.id]}
-            onMarkPosted={() => setStatus(post.id, "posted")}
-            onSkip={() => setStatus(post.id, "skipped")}
-            onSchedule={() => setStatus(post.id, "scheduled")}
-          />
-        ))}
-      </div>
+      {paidFills.length > 0 && (
+        <section className="slot-section">
+          <h2 className="slot-section-title">Paid platforms</h2>
+          <div className="slot-grid">
+            {paidFills.map((fill) => (
+              <SlotCard
+                key={fill.slot.id}
+                fill={fill}
+                thumbUrl={fill.post ? thumbUrls[fill.post.id] : undefined}
+                onMarkPosted={() =>
+                  fill.post && setStatus(fill.post.id, "posted", fill.slot.platformId)
+                }
+                onSkip={() => fill.post && setStatus(fill.post.id, "skipped")}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {today.plan.length === 0 && today.stats && today.stats.pendingTotal === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: 40, marginTop: 24 }}>
-          <p style={{ marginBottom: 16, color: "var(--muted-strong)" }}>
-            All caught up. Every piece in your vault has been posted, scheduled, or skipped.
+      {socialFills.length > 0 && (
+        <section className="slot-section">
+          <h2 className="slot-section-title">Social platforms</h2>
+          <div className="slot-grid">
+            {socialFills.map((fill) => (
+              <SlotCard
+                key={fill.slot.id}
+                fill={fill}
+                thumbUrl={fill.post ? thumbUrls[fill.post.id] : undefined}
+                onMarkPosted={() =>
+                  fill.post && setStatus(fill.post.id, "posted", fill.slot.platformId)
+                }
+                onSkip={() => fill.post && setStatus(fill.post.id, "skipped")}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {today.bonus.length > 0 && (
+        <section className="slot-section">
+          <h2 className="slot-section-title">Also in your backlog</h2>
+          <p className="slot-section-sub">
+            High-value pending pieces that didn&rsquo;t get a slot today — usually because their
+            recommended platform isn&rsquo;t in your active list, or another piece won the slot.
           </p>
-          <Link href="/" className="btn btn-primary">Add more content</Link>
-        </div>
+          <div className="slot-grid">
+            {today.bonus.map((post) => (
+              <BonusCard
+                key={post.id}
+                post={post}
+                thumbUrl={thumbUrls[post.id]}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );
 }
 
-function TodayCard({
-  post,
-  index,
+// ---------- Components ----------
+
+function SlotCard({
+  fill,
   thumbUrl,
   onMarkPosted,
   onSkip,
-  onSchedule,
 }: {
-  post: MergedPost;
-  index: number;
+  fill: SlotFill;
   thumbUrl: string | undefined;
   onMarkPosted: () => void;
   onSkip: () => void;
-  onSchedule: () => void;
+}) {
+  const { slot, post } = fill;
+  const composeUrl = platformComposeUrl(slot.platformId);
+
+  if (!post) {
+    return (
+      <article className="slot-card slot-card-empty">
+        <header className="slot-card-header">
+          <h3 className="slot-card-title">{slot.title}</h3>
+          <p className="slot-card-subtitle">{slot.subtitle}</p>
+        </header>
+        <div className="slot-empty-body">
+          <p>No matching pending content.</p>
+          <p className="slot-empty-hint">
+            Analyze a piece tagged for {platformName(slot.platformId)} and it&rsquo;ll fill this slot tomorrow.
+          </p>
+          <Link href="/" className="btn btn-secondary">Analyze content</Link>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <SlotCardFilled
+      slot={slot}
+      post={post}
+      thumbUrl={thumbUrl}
+      composeUrl={composeUrl}
+      onMarkPosted={onMarkPosted}
+      onSkip={onSkip}
+    />
+  );
+}
+
+function SlotCardFilled({
+  slot,
+  post,
+  thumbUrl,
+  composeUrl,
+  onMarkPosted,
+  onSkip,
+}: {
+  slot: Slot;
+  post: MergedPost;
+  thumbUrl: string | undefined;
+  composeUrl: string | undefined;
+  onMarkPosted: () => void;
+  onSkip: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const pr = post.analysis.primary_recommendation;
   const fs = post.analysis.funnel_strategy;
-  const composeUrl = platformComposeUrl(pr.platform);
 
-  const fullText = pr.hashtags?.length ? `${pr.caption}\n\n${pr.hashtags.join(" ")}` : pr.caption;
-  const copy = async () => {
-    await navigator.clipboard.writeText(fullText);
+  // For OF/Fansly slots find the recommendation that matches the slot platform
+  // (might be primary OR an alternative). For social slots, same.
+  const matchedRec =
+    post.primary_platform === slot.platformId
+      ? post.analysis.primary_recommendation
+      : (post.analysis.alternatives ?? []).find((a) => a.platform === slot.platformId) ??
+        post.analysis.primary_recommendation;
+
+  const distMode = matchedRec.distribution_mode ?? null;
+  const showWallCaption = distMode === "wall" || distMode === "both" || distMode === null;
+  const showPpv = (distMode === "ppv" || distMode === "both") && Boolean(matchedRec.ppv_dm_message);
+
+  // Free promo OF/Fansly slot: prefer NOT to recommend the paid OF caption.
+  // Use the analysis primary if it's a free-platform alt; otherwise fall back.
+  const fullCaption = matchedRec.hashtags?.length
+    ? `${matchedRec.caption}\n\n${matchedRec.hashtags.join(" ")}`
+    : matchedRec.caption;
+
+  const copy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   };
 
-  const priceLabel = post.primary_price_low > 0
-    ? post.primary_price_low === post.primary_price_high
-      ? `$${post.primary_price_low}`
-      : `$${post.primary_price_low}–$${post.primary_price_high}`
-    : null;
+  const priceLabel =
+    matchedRec.pricing_suggestion?.suggested_price
+      ? `$${matchedRec.pricing_suggestion.suggested_price}`
+      : post.primary_price_low > 0
+        ? `$${post.primary_price_low}–$${post.primary_price_high}`
+        : null;
 
   return (
-    <article className="today-card">
-      <div className="today-card-rank">#{index + 1}</div>
+    <article className="slot-card">
+      <header className="slot-card-header">
+        <div>
+          <h3 className="slot-card-title">{slot.title}</h3>
+          <p className="slot-card-subtitle">{slot.subtitle}</p>
+        </div>
+        {fs && <span className="today-card-tier" data-tier={fs.this_image_tier}>T{fs.this_image_tier}</span>}
+      </header>
 
-      <div className="today-card-thumb">
+      <div className="slot-card-thumb">
         {thumbUrl ? (
           <img src={thumbUrl} alt="" />
         ) : post.remote_image_url ? (
@@ -238,51 +596,66 @@ function TodayCard({
             <span>Image on another device</span>
           </div>
         )}
-        {fs && (
-          <span className="today-card-tier" data-tier={fs.this_image_tier}>T{fs.this_image_tier}</span>
-        )}
       </div>
 
-      <div className="today-card-body">
-        <div className="today-card-header">
-          <h2 className="today-card-platform">{platformName(pr.platform)}</h2>
-          {priceLabel && <span className="today-card-price">{priceLabel}</span>}
-        </div>
-
-        {pr.post_type?.label && (
-          <span className="today-card-posttype">{pr.post_type.label.replace(/_/g, " ")}</span>
+      <div className="slot-card-body">
+        {distMode && (
+          <div className="slot-distribution" data-mode={distMode}>
+            <span className="slot-distribution-label">
+              {distMode === "wall" ? "Wall post" : distMode === "ppv" ? "PPV in DMs only" : "Wall + PPV"}
+            </span>
+            {priceLabel && distMode !== "wall" && (
+              <span className="slot-distribution-price">{priceLabel}</span>
+            )}
+          </div>
         )}
 
-        {fs && (
-          <p className="today-card-funnel">
-            <strong>{fs.this_image_role.replace(/-/g, " ")}.</strong> {fs.monetization_path}
-          </p>
+        {matchedRec.distribution_rationale && (
+          <p className="slot-rationale">{matchedRec.distribution_rationale}</p>
         )}
 
-        <div className="today-card-caption">
-          <span className="today-card-caption-label">Caption</span>
-          <p className="caption-block">{pr.caption}</p>
-          {pr.hashtags?.length > 0 && (
-            <ul className="hashtags">
-              {pr.hashtags.map((h, i) => <li key={i}>{h}</li>)}
-            </ul>
-          )}
-        </div>
+        {showWallCaption && (
+          <div className="slot-caption">
+            <span className="slot-caption-label">
+              {distMode === "both" ? "Wall caption" : "Caption"}
+            </span>
+            <p className="caption-block">{matchedRec.caption}</p>
+            {matchedRec.hashtags?.length > 0 && (
+              <ul className="hashtags">
+                {matchedRec.hashtags.map((h, i) => (
+                  <li key={i}>{h}</li>
+                ))}
+              </ul>
+            )}
+            <button className="btn-ghost" onClick={() => copy(fullCaption)}>
+              {copied ? "Copied ✓" : "Copy caption"}
+            </button>
+          </div>
+        )}
 
-        <div className="today-card-actions">
-          <button className="btn-ghost" onClick={copy}>
-            {copied ? "Copied ✓" : "Copy caption"}
-          </button>
+        {showPpv && matchedRec.ppv_dm_message && (
+          <div className="slot-ppv">
+            <span className="slot-caption-label">PPV DM message</span>
+            <p className="ppv-dm-text">{matchedRec.ppv_dm_message}</p>
+            <button className="btn-ghost" onClick={() => copy(matchedRec.ppv_dm_message!)}>
+              Copy DM
+            </button>
+          </div>
+        )}
+
+        <div className="slot-actions">
           {composeUrl && (
-            <a className="btn-compose" href={composeUrl} target="_blank" rel="noopener noreferrer">
-              Open {platformName(pr.platform)} →
+            <a
+              className="btn-compose"
+              href={composeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open {platformName(slot.platformId)} →
             </a>
           )}
-          <button className="btn btn-primary today-mark-posted" onClick={onMarkPosted}>
+          <button className="btn btn-primary" onClick={onMarkPosted}>
             ✓ Mark as posted
-          </button>
-          <button className="btn-ghost" onClick={onSchedule}>
-            Schedule later
           </button>
           <button className="btn-ghost btn-danger" onClick={onSkip}>
             Skip
@@ -292,3 +665,35 @@ function TodayCard({
     </article>
   );
 }
+
+function BonusCard({ post, thumbUrl }: { post: MergedPost; thumbUrl: string | undefined }) {
+  const fs = post.analysis.funnel_strategy;
+  return (
+    <article className="slot-card slot-card-bonus">
+      <header className="slot-card-header">
+        <div>
+          <h3 className="slot-card-title">{platformName(post.primary_platform)}</h3>
+          <p className="slot-card-subtitle">{post.analysis.image_summary}</p>
+        </div>
+        {fs && <span className="today-card-tier" data-tier={fs.this_image_tier}>T{fs.this_image_tier}</span>}
+      </header>
+      <div className="slot-card-thumb">
+        {thumbUrl ? (
+          <img src={thumbUrl} alt="" />
+        ) : post.remote_image_url ? (
+          <img src={post.remote_image_url} alt="" />
+        ) : (
+          <div className="vault-thumb-placeholder">
+            <span>Image on another device</span>
+          </div>
+        )}
+      </div>
+      <div className="slot-card-body">
+        <Link href={`/vault?focus=${encodeURIComponent(post.id)}`} className="btn btn-secondary">
+          View in vault
+        </Link>
+      </div>
+    </article>
+  );
+}
+

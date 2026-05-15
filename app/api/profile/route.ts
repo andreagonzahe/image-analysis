@@ -57,6 +57,14 @@ export async function POST(req: Request) {
     time_per_week: body.time_per_week ?? null,
     revenue_target_monthly: body.revenue_target_monthly ?? null,
     offer_mix: Array.isArray(body.offer_mix) ? body.offer_mix.slice(0, 15) : [],
+    of_account_mode:
+      body.of_account_mode === "single" || body.of_account_mode === "free_paid_pair"
+        ? body.of_account_mode
+        : null,
+    fansly_account_mode:
+      body.fansly_account_mode === "single" || body.fansly_account_mode === "free_paid_pair"
+        ? body.fansly_account_mode
+        : null,
     updated_at: new Date().toISOString(),
   };
   if (body.survey_dismissed_at !== undefined) {

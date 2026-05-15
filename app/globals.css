@@ -3562,6 +3562,240 @@ h1.title {
   gap: 18px;
 }
 
+/* ===== Slot calendar (today page rewrite) ===== */
+.today-stat-num-sub {
+  font-size: 18px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+.slot-section {
+  margin-top: 36px;
+}
+
+.slot-section-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.slot-section-sub {
+  margin: 0 0 16px;
+  color: var(--muted-strong);
+  font-size: 14px;
+  max-width: 720px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.slot-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.slot-card-empty {
+  background: var(--bg-warm);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.slot-card-bonus {
+  opacity: 0.95;
+}
+
+.slot-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px 10px;
+}
+
+.slot-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.slot-card-subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+  line-height: 1.4;
+}
+
+.slot-card-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-warm);
+  overflow: hidden;
+  position: relative;
+}
+
+.slot-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.slot-card-body {
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slot-empty-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.slot-empty-body p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.slot-empty-hint {
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+}
+
+.slot-distribution {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+}
+
+.slot-distribution[data-mode="wall"] { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3); }
+.slot-distribution[data-mode="ppv"] { background: rgba(244, 114, 182, 0.08); border-color: rgba(244, 114, 182, 0.3); }
+.slot-distribution[data-mode="both"] { background: rgba(0, 175, 240, 0.08); border-color: rgba(0, 175, 240, 0.3); }
+
+.slot-distribution-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.slot-distribution-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.slot-rationale {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.slot-caption,
+.slot-ppv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slot-caption-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ===== Distribution badge (ResultCard) ===== */
+.distribution-badge {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+}
+
+.distribution-badge[data-mode="wall"] { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3); }
+.distribution-badge[data-mode="ppv"] { background: rgba(244, 114, 182, 0.08); border-color: rgba(244, 114, 182, 0.3); }
+.distribution-badge[data-mode="both"] { background: rgba(0, 175, 240, 0.08); border-color: rgba(0, 175, 240, 0.3); }
+
+.distribution-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.distribution-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.distribution-mode {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.distribution-sub {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--muted-strong);
+  line-height: 1.45;
+}
+
+.distribution-rationale {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Survey: section help text under labels */
+.survey-section-help {
+  margin: -2px 0 4px;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+  line-height: 1.45;
+}
+
 .today-card {
   display: grid;
   grid-template-columns: 60px 200px 1fr;

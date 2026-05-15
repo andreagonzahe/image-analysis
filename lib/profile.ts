@@ -14,9 +14,19 @@ export type CreatorProfile = {
   time_per_week?: string | null;
   revenue_target_monthly?: string | null;
   offer_mix: string[];
+  // Account topology — most successful adult creators run TWO OF accounts
+  // (a free promo + a paid subscription). We need to know this to size the
+  // daily slot calendar correctly.
+  of_account_mode?: "single" | "free_paid_pair" | null;
+  fansly_account_mode?: "single" | "free_paid_pair" | null;
   created_at?: string;
   updated_at?: string;
 };
+
+export const ACCOUNT_MODE_OPTIONS = [
+  { id: "single", label: "Just one account" },
+  { id: "free_paid_pair", label: "Two accounts: a free promo + a paid sub" },
+];
 
 export const NICHE_OPTIONS = [
   { id: "lifestyle", label: "Lifestyle / fashion / beauty" },
@@ -187,6 +197,16 @@ export function profileSummaryForPrompt(p: CreatorProfile | null | undefined): s
   }
   if (p!.revenue_target_monthly) {
     lines.push(`- revenue target: ${labelOf(REVENUE_TARGET_OPTIONS, p!.revenue_target_monthly)} — scale pricing aggressiveness to match (low target = optimize unlock rate over per-piece price; high target = push higher prices and premium tiers)`);
+  }
+  if (p!.of_account_mode === "free_paid_pair") {
+    lines.push(
+      "- runs a TWO-account OnlyFans setup: a free promo account (funnel from social) + a paid sub account. When recommending OF, favor wall posts on the FREE account for Tier 1-2 funnel content, and PPV/wall on the PAID account for Tier 3+. The 'distribution_mode' field should reflect this."
+    );
+  }
+  if (p!.fansly_account_mode === "free_paid_pair") {
+    lines.push(
+      "- runs a TWO-account Fansly setup (free promo + paid). Same distribution logic as the OF pair."
+    );
   }
   lines.push(
     "",

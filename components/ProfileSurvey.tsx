@@ -12,6 +12,7 @@ import {
   TIME_PER_WEEK_OPTIONS,
   REVENUE_TARGET_OPTIONS,
   OFFER_MIX_OPTIONS,
+  ACCOUNT_MODE_OPTIONS,
   type CreatorProfile,
 } from "@/lib/profile";
 import { PLATFORMS } from "@/lib/platforms";
@@ -40,6 +41,8 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
   const [timePerWeek, setTimePerWeek] = useState<string>("");
   const [revenueTarget, setRevenueTarget] = useState<string>("");
   const [offerMix, setOfferMix] = useState<string[]>([]);
+  const [ofAccountMode, setOfAccountMode] = useState<string>("");
+  const [fanslyAccountMode, setFanslyAccountMode] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +67,8 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           setTimePerWeek(p.time_per_week ?? "");
           setRevenueTarget(p.revenue_target_monthly ?? "");
           setOfferMix(p.offer_mix ?? []);
+          setOfAccountMode(p.of_account_mode ?? "");
+          setFanslyAccountMode(p.fansly_account_mode ?? "");
         }
         const isEmpty = !p || (!p.niche && (p.tones ?? []).length === 0 && !p.persona && (p.primary_platforms ?? []).length === 0);
         const wasDismissed = Boolean(p?.survey_dismissed_at);
@@ -130,6 +135,8 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
           time_per_week: timePerWeek || null,
           revenue_target_monthly: revenueTarget || null,
           offer_mix: offerMix,
+          of_account_mode: ofAccountMode || null,
+          fansly_account_mode: fanslyAccountMode || null,
         }),
       });
       const data = await res.json();
@@ -356,6 +363,50 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
               ))}
             </div>
           </div>
+
+          {primaryPlatforms.includes("onlyfans") && (
+            <div className="survey-section">
+              <span className="survey-section-label">Your OnlyFans setup</span>
+              <p className="survey-section-help">
+                Most successful creators run TWO OF accounts: a free promo account
+                (used as a funnel from social) + a paid sub account. The daily
+                calendar fills 1 slot for &ldquo;single&rdquo; or 2 for &ldquo;free + paid&rdquo;.
+              </p>
+              <div className="survey-chip-grid">
+                {ACCOUNT_MODE_OPTIONS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`survey-chip${ofAccountMode === m.id ? " survey-chip-active" : ""}`}
+                    onClick={() => setOfAccountMode(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {primaryPlatforms.includes("fansly") && (
+            <div className="survey-section">
+              <span className="survey-section-label">Your Fansly setup</span>
+              <p className="survey-section-help">
+                Same question for Fansly — single account, or a free + paid pair?
+              </p>
+              <div className="survey-chip-grid">
+                {ACCOUNT_MODE_OPTIONS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`survey-chip${fanslyAccountMode === m.id ? " survey-chip-active" : ""}`}
+                    onClick={() => setFanslyAccountMode(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ),
       canNext: strengths.length >= 1 && Boolean(timePerWeek) && Boolean(revenueTarget) && offerMix.length >= 1,
@@ -428,6 +479,28 @@ export function ProfileSurvey({ forceOpen, onClose }: Props) {
             }
             onEdit={() => setStep(5)}
           />
+          {primaryPlatforms.includes("onlyfans") && (
+            <ReviewSection
+              label="OnlyFans setup"
+              value={
+                ofAccountMode
+                  ? ACCOUNT_MODE_OPTIONS.find((m) => m.id === ofAccountMode)?.label ?? ofAccountMode
+                  : "—"
+              }
+              onEdit={() => setStep(5)}
+            />
+          )}
+          {primaryPlatforms.includes("fansly") && (
+            <ReviewSection
+              label="Fansly setup"
+              value={
+                fanslyAccountMode
+                  ? ACCOUNT_MODE_OPTIONS.find((m) => m.id === fanslyAccountMode)?.label ?? fanslyAccountMode
+                  : "—"
+              }
+              onEdit={() => setStep(5)}
+            />
+          )}
         </div>
       ),
       canNext:

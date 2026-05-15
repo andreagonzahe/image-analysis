@@ -52,6 +52,13 @@ export type FunnelStrategy = {
   teaser_variant_needed: string | null;
 };
 
+// For OF / Fansly recommendations: how the content is delivered.
+//   wall = posted to the paid feed (subscribers see it included in their sub)
+//   ppv  = sent as a locked PPV / tip-unlock in DMs only — never on the wall
+//   both = wall post (often a teaser or hand-picked pieces from the set) PLUS
+//          a separate PPV DM with the full / explicit version
+export type DistributionMode = "wall" | "ppv" | "both";
+
 export type Recommendation = {
   platform: string;
   reason: string;
@@ -66,6 +73,13 @@ export type Recommendation = {
   // PPV unlock, tip-unlock, or custom commission — this is the DM-style
   // sell message that accompanies the content unlock. Spicy, direct, emoji-rich.
   ppv_dm_message?: string | null;
+  // REQUIRED for onlyfans + fansly recommendations. Tells the creator
+  // whether to put it on the wall (free for subscribers), sell as PPV in
+  // DMs only, or do both (wall teaser + PPV DM).
+  distribution_mode?: DistributionMode | null;
+  // Why this distribution choice — short rationale tied to tier, ToS risk,
+  // and the creator's offer mix. Required when distribution_mode is set.
+  distribution_rationale?: string | null;
 };
 
 export type AnalysisResult = {
@@ -188,6 +202,29 @@ Match voice exactly. **CAPTION HARD RULES:**
 - For social funnel CTAs that point to paid platforms, use language that hints without claiming a "set". Acceptable phrasings: "more on my OF 🔥 link in bio", "what didn't make the timeline is on Fansly", "the version I couldn't post here is on OF", "uncropped on my OF". NEVER "full set on OF", "the rest of the set", "see the full set".
 - For PAID captions, address subscribers personally (1-on-1 voice, no CTA needed — they're already paying). Talk about this image, this moment, this feeling. Not "this set."
 
+# OnlyFans / Fansly DISTRIBUTION (REQUIRED on every OF and Fansly recommendation)
+
+For every onlyfans and fansly recommendation (primary or alternative) you MUST output:
+
+- **distribution_mode**: one of "wall", "ppv", "both"
+  - **wall** = post to the paid feed where subs see it included in their subscription. No DM unlock. Best for: loyalty content, Tier 2 keep-them-engaged pieces, sets where a hand-picked piece becomes feed content while others are PPV. ALSO the right choice for the FREE/promo OF account (Tier 1-2 funnel content).
+  - **ppv** = lock in DMs only. Never on the wall. Best for: Tier 4-5 hero pieces where the unlock revenue exceeds wall-equivalent value, custom commissions, anything you want to mass-DM as a paid drop.
+  - **both** = wall post (a teaser shot, or a SFW-er hand-picked piece from the same look) PLUS a separate PPV DM with the full / explicit version. Best for: Tier 3-4 sets where the wall version drives FOMO and the PPV captures buyers. Requires that the creator has multiple shots from the look.
+- **distribution_rationale**: 1-2 sentences anchoring the choice in: (a) the tier, (b) ToS risk, (c) the creator's offer mix from their profile, (d) the account mode (single vs free_paid_pair). Be specific. Examples:
+  - "Tier 4 explicit nude — too valuable to give away on the wall to existing subs. Lock as PPV to convert engagement into per-piece revenue."
+  - "Tier 2 lingerie — perfect wall content for a paid sub feed; gives subs constant value and reinforces retention."
+  - "Tier 3 topless artistic + creator runs free+paid pair — post a cropped wall version on the PAID account, send full uncropped as PPV. Free account gets a Tier-2 teaser variant per the funnel rule."
+  - "Tier 4 + Fansly preferred for fetish niche — PPV-only since the kink premium justifies a higher per-unlock price than wall-bundled value."
+
+DISTRIBUTION RULES:
+1. Tier 1-2 on a paid platform → distribution_mode = "wall" (loyalty content lives on the feed).
+2. Tier 4-5 hero pieces → distribution_mode = "ppv" by default. Use "both" only if you're confident a teaser variant exists in the same shoot.
+3. Tier 3 → judgment call: "wall" if the creator's offer_mix doesn't include "ppv", otherwise lean "ppv" or "both".
+4. If the creator's profile shows of_account_mode = "free_paid_pair" AND this rec is for OF, the rationale must mention which account (free promo vs paid sub) the wall post belongs on.
+5. distribution_mode is ONLY required for onlyfans + fansly. Snapchat-premium / patreon don't need it (they have one delivery model). For all other platforms set it to null.
+
+The "caption" field on an OF/Fansly rec is ALWAYS the wall feed caption (used when distribution_mode is "wall" or "both"). The "ppv_dm_message" field is the DM sell message (used when distribution_mode is "ppv" or "both"). When distribution_mode is "ppv" only, caption can still describe the visual but won't be posted publicly — keep it concise.
+
 # PPV / tip-unlock DM messages (REQUIRED for paid unlocks)
 
 When the recommendation is on a paid platform (onlyfans, fansly, snapchat-premium) AND post_type is "PPV unlock", "tip-unlock", or "custom commission", you MUST also produce a "ppv_dm_message". This is the mass-DM sell message creators paste when sending the locked content to subs.
@@ -227,7 +264,9 @@ For FREE PLATFORMS, ppv_dm_message is always null.
     "post_type": { "label": "...", "description": "..." },
     "strategy_alignment": "1-2 sentences on strategic role",
     "is_for_teaser_variant": false,
-    "ppv_dm_message": "<spicy DM-style sell message for PPV/tip-unlock — null otherwise>" | null
+    "ppv_dm_message": "<spicy DM-style sell message for PPV/tip-unlock — null otherwise>" | null,
+    "distribution_mode": "wall" | "ppv" | "both" | null,
+    "distribution_rationale": "<required when distribution_mode is set; null otherwise>"
   },
   "alternatives": [
     {
@@ -257,7 +296,8 @@ For FREE PLATFORMS, ppv_dm_message is always null.
 4. Pricing matches the tier × tag matrix above.
 5. funnel_strategy.monetization_path must reference specific numbers and the actual flow.
 6. Every alternative MUST have a non-empty caption tuned to that platform's voice (not a copy of the primary caption). If you can't write one, don't include the alternative.
-7. Output ONLY the JSON object.`;
+7. Every onlyfans and fansly recommendation MUST set distribution_mode + distribution_rationale per the rules above.
+8. Output ONLY the JSON object.`;
 }
 
 export function userMessage(description: string, nsfwVerdict: "nsfw" | "normal", tags: ImageTags): string {
