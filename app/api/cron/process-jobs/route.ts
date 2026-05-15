@@ -14,6 +14,7 @@ import { captionImage } from "@/lib/captioner";
 import { decideStrategy } from "@/lib/strategist";
 import { fetchProfile } from "@/lib/profile-server";
 import { prepImageForReplicate } from "@/lib/image-prep-server";
+import { sweepReplicateDeletions } from "@/lib/replicate-cleanup";
 import { PLATFORMS } from "@/lib/platforms";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
@@ -87,9 +88,13 @@ export async function POST(req: Request) {
       if (!byBatch[b]) byBatch[b] = {};
       byBatch[b][j.status] = (byBatch[b][j.status] ?? 0) + 1;
     }
+    // Even when there's no work, sweep Replicate retention. Adult content
+    // shouldn't linger on their servers any longer than necessary.
+    const cleanupIdle = await sweepReplicateDeletions();
     return NextResponse.json({
       processed: 0,
       message: "No pending jobs.",
+      cleanup: cleanupIdle,
       diagnostic: {
         scanned_recent: all?.length ?? 0,
         by_status: byStatus,
@@ -123,12 +128,17 @@ export async function POST(req: Request) {
     }
   });
 
+  // Sweep Replicate retention as part of the same tick — keeps adult
+  // images from sitting in their cache past the bare minimum window.
+  const cleanup = await sweepReplicateDeletions();
+
   return NextResponse.json({
     processed: claimed.length,
     done,
     failed,
     this_tick_errors,
     recent_failures: recentFailures ?? [],
+    cleanup,
   });
 }
 

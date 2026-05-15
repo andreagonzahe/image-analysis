@@ -4,6 +4,11 @@ import { getConnectionForUser, getThumbnailBytes } from "@/lib/dropbox";
 
 export const runtime = "nodejs";
 
+// Format: literal "id:" prefix + 16-64 chars of base64-url-ish payload.
+// Conservative cap on length so a malicious caller can't smuggle a giant
+// request body through the URL. Dropbox real ids are typically 22 chars.
+const FILE_ID_RE = /^id:[A-Za-z0-9_=\-]{8,64}$/;
+
 const VALID_SIZES = new Set([
   "w32h32",
   "w64h64",
@@ -37,9 +42,11 @@ export async function GET(
   }
   const { fileId: rawFileId } = await params;
   const fileId = decodeURIComponent(rawFileId);
-  // Dropbox file IDs start with "id:" — reject anything that doesn't look
-  // like one so we don't accidentally make path-style requests.
-  if (!fileId.startsWith("id:")) {
+  // Dropbox file IDs have a known shape: "id:" + 22ish chars of
+  // base64-ish (letters/digits/_-=). Reject anything else so a malicious
+  // caller can't smuggle paths, traversal, or extra Dropbox API args
+  // through the URL.
+  if (!FILE_ID_RE.test(fileId)) {
     return NextResponse.json({ error: "Invalid file id" }, { status: 400 });
   }
 
