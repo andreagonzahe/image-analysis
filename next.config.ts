@@ -56,6 +56,15 @@ const SECURITY_HEADERS = [
   },
 ];
 
+// CSP in dev mode is brittle — Turbopack's HMR injects styles via paths
+// the static CSP doesn't predict, and Safari enforces stricter than
+// Chrome, so dev gets blank-page'd. Only emit CSP in production builds;
+// dev still gets all the other (non-breaking) security headers.
+const isProd = process.env.NODE_ENV === "production";
+const HEADERS_FOR_THIS_ENV = isProd
+  ? SECURITY_HEADERS
+  : SECURITY_HEADERS.filter((h) => h.key !== "Content-Security-Policy");
+
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
@@ -66,7 +75,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        headers: SECURITY_HEADERS,
+        headers: HEADERS_FOR_THIS_ENV,
       },
     ];
   },
