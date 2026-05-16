@@ -8,12 +8,14 @@ type BatchStatus = {
   batch: {
     id: string;
     label: string;
-    status: "running" | "completed" | "cancelled";
+    status: "running" | "completed" | "cancelled" | "paused";
     total_jobs: number;
     done_jobs: number;
     failed_jobs: number;
     created_at: string;
     completed_at: string | null;
+    pause_reason?: string | null;
+    paused_at?: string | null;
   };
   counts: Record<string, number>;
   by_kind: {
@@ -77,6 +79,23 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Retry failed");
       setRetryMsg(`Reset ${json.reset} job(s). They'll start processing again now.`);
+    } catch (e) {
+      setRetryMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const resumePaused = async () => {
+    setRetrying(true);
+    setRetryMsg(null);
+    try {
+      const res = await fetch("/api/jobs/resume", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Resume failed");
+      setRetryMsg(
+        `Resumed ${json.resumed_batches} batch${json.resumed_batches === 1 ? "" : "es"}. Workers will start processing again in a few seconds.`
+      );
     } catch (e) {
       setRetryMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -189,7 +208,8 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
     );
   }
 
-  const isDone = data.batch.status !== "running";
+  const isPaused = data.batch.status === "paused";
+  const isDone = data.batch.status !== "running" && !isPaused;
   const total = data.batch.total_jobs;
   const done = data.batch.done_jobs;
   const failed = data.batch.failed_jobs;
@@ -230,12 +250,14 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
     <main>
       <header className="hero">
         <h1 className="title">
-          {isDone ? "Import complete" : "Importing…"}
+          {isPaused ? "⏸ Import paused" : isDone ? "Import complete" : "Importing…"}
         </h1>
         <p className="hero-sub">
-          {isDone
-            ? `Finished. ${kept.toLocaleString()} pieces added to your vault, ${skipped.toLocaleString()} skipped as noise.`
-            : `Working on "${data.batch.label}". You can close this tab — we'll keep going in the background.`}
+          {isPaused
+            ? `Paused at ${done}/${total} to avoid wasting more attempts. Top up your provider credit, then click Resume below.`
+            : isDone
+              ? `Finished. ${kept.toLocaleString()} pieces added to your vault, ${skipped.toLocaleString()} skipped as noise.`
+              : `Working on "${data.batch.label}". You can close this tab — we'll keep going in the background.`}
         </p>
         {skippedAsDuplicate > 0 && (
           <p className="hero-sub" style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
@@ -243,6 +265,31 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
           </p>
         )}
       </header>
+
+      {isPaused && (
+        <div className="paused-banner">
+          <div>
+            <strong className="paused-banner-title">⚠ Out of API credit</strong>
+            <p className="paused-banner-body">
+              {data.batch.pause_reason ?? "A provider returned a credit-exhausted error and the queue was paused to stop burning attempts on jobs that would all fail."}
+            </p>
+            <p className="paused-banner-body" style={{ marginTop: 6 }}>
+              Top up at{" "}
+              <a href="https://api.together.ai/settings/billing" target="_blank" rel="noopener">together.ai/settings/billing</a>{" "}
+              and/or{" "}
+              <a href="https://replicate.com/account/billing" target="_blank" rel="noopener">replicate.com/account/billing</a>
+              , then click Resume.
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={resumePaused}
+            disabled={retrying}
+          >
+            {retrying ? "Resuming…" : "Resume import"}
+          </button>
+        </div>
+      )}
 
       <div className="card status-overall">
         <div className="progress-bar" style={{ height: 12 }}>

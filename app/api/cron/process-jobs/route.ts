@@ -5,8 +5,10 @@ import {
   markJobFailed,
   markJobSkipped,
   enqueueJobs,
+  pauseBatchOnCreditExhaustion,
   type Job,
 } from "@/lib/jobs";
+import { isCreditExhaustedError } from "@/lib/credit-errors";
 import { getConnectionForUser, getTemporaryLink } from "@/lib/dropbox";
 import { prefilterImage } from "@/lib/prefilter";
 import { classifyNsfw } from "@/lib/nsfw";
@@ -114,6 +116,8 @@ export async function POST(req: Request) {
 
   let done = 0;
   let failed = 0;
+  type CreditExhaustion = { provider: string; details: string; batchId: string | null };
+  const creditExhaustions: CreditExhaustion[] = [];
   const this_tick_errors: Array<{ kind: string; name: string; error: string }> = [];
   results.forEach((r, i) => {
     if (r.status === "fulfilled") {
@@ -126,8 +130,27 @@ export async function POST(req: Request) {
         name: String(job.input?.name ?? job.id),
         error: r.reason instanceof Error ? r.reason.message : String(r.reason),
       });
+      if (isCreditExhaustedError(r.reason)) {
+        creditExhaustions.push({
+          provider: r.reason.provider,
+          details: r.reason.details,
+          batchId: job.batch_id ?? null,
+        });
+      }
     }
   });
+
+  // Halt the bleed: if ANY job failed with credit-exhausted, pause every
+  // running batch for that user. Their pending jobs will sit untouched
+  // (claimJobs filters paused batches) until they hit "Resume" after
+  // topping up. Saves potentially hundreds of wasted attempts.
+  const creditExhausted = creditExhaustions[0] ?? null;
+  if (creditExhausted) {
+    await pauseBatchOnCreditExhaustion(
+      creditExhausted.batchId,
+      `${creditExhausted.provider} out of credit — ${creditExhausted.details}`
+    );
+  }
 
   // Sweep Replicate retention as part of the same tick — keeps adult
   // images from sitting in their cache past the bare minimum window.
@@ -140,6 +163,7 @@ export async function POST(req: Request) {
     this_tick_errors,
     recent_failures: recentFailures ?? [],
     cleanup,
+    credit_exhausted: creditExhausted,
   });
 }
 

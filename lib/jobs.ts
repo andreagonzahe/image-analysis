@@ -26,7 +26,7 @@ export type Job = {
 };
 
 export type BatchKind = "dropbox_import" | "bulk_analyze";
-export type BatchStatus = "running" | "completed" | "cancelled";
+export type BatchStatus = "running" | "completed" | "cancelled" | "paused";
 
 export type JobBatch = {
   id: string;
@@ -160,14 +160,22 @@ export async function claimJobs(limit: number): Promise<Job[]> {
   // when older half-failed batches still had pending jobs — they'd watch
   // 0/75 forever while the worker drained someone else's old batch. With
   // newest-first, the just-started import always drains in front.
+  // Pull a list of currently-paused batches so we can exclude their jobs.
+  // Tiny query, runs once per claim, hot-path-safe even at scale.
+  const { data: pausedBatches } = await supabase
+    .from("job_batches")
+    .select("id")
+    .eq("status", "paused");
+  const pausedIds = new Set((pausedBatches ?? []).map((b) => b.id as string));
+
   const { data: candidates, error: selErr } = await supabase
     .from("jobs")
-    .select("id, next_attempt_at")
+    .select("id, next_attempt_at, batch_id")
     .in("status", ["pending", "failed"])
     .lt("attempts", MAX_ATTEMPTS)
     .order("priority", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(limit * 4); // overfetch in case some are backed off
+    .limit(limit * 8); // overfetch — backoff + paused-batch filter trim it down
 
   if (selErr) {
     console.warn("[jobs] claimJobs select error:", selErr.message);
@@ -175,9 +183,13 @@ export async function claimJobs(limit: number): Promise<Job[]> {
   }
   if (!candidates || candidates.length === 0) return [];
 
-  // Drop anything whose backoff hasn't expired yet.
+  // Drop jobs whose backoff hasn't expired, and jobs whose batch is paused.
+  // Paused batches stay until the user resumes — we don't want to keep
+  // burning attempts on jobs the user has chosen to halt for cost reasons.
   const ready = candidates.filter(
-    (c) => !c.next_attempt_at || c.next_attempt_at <= nowIso
+    (c) =>
+      (!c.next_attempt_at || c.next_attempt_at <= nowIso) &&
+      !(c.batch_id && pausedIds.has(c.batch_id as string))
   );
   if (ready.length === 0) return [];
   const ids = ready.slice(0, limit).map((c) => c.id);
@@ -347,4 +359,71 @@ export async function listJobsForBatch(batchId: string, limit = 500): Promise<Jo
     .order("created_at", { ascending: true })
     .limit(limit);
   return (data ?? []) as Job[];
+}
+
+/**
+ * Pause a batch and every other running batch belonging to the same
+ * user. Triggered when the cron worker detects a credit-exhausted error
+ * — better to halt the whole queue than bleed attempts across dozens of
+ * jobs that will all fail the same way. The user resumes after topping
+ * up; we reset their failed jobs' attempts to 0 in a separate action.
+ */
+export async function pauseBatchOnCreditExhaustion(
+  batchId: string | null,
+  reason: string
+): Promise<void> {
+  if (!batchId) return;
+  const supabase = requireSupabase();
+  const { data: batch } = await supabase
+    .from("job_batches")
+    .select("user_id")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batch?.user_id) return;
+  await supabase
+    .from("job_batches")
+    .update({
+      status: "paused",
+      pause_reason: reason.slice(0, 500),
+      paused_at: new Date().toISOString(),
+    })
+    .eq("user_id", batch.user_id)
+    .eq("status", "running");
+}
+
+/**
+ * Resume every paused batch for this user and reset their failed jobs
+ * back to pending so the worker re-claims them. Called when the user
+ * clicks "Resume" after topping up.
+ */
+export async function resumePausedBatches(userId: string): Promise<number> {
+  const supabase = requireSupabase();
+  const { data: paused } = await supabase
+    .from("job_batches")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "paused");
+  const ids = (paused ?? []).map((b) => b.id as string);
+  if (ids.length === 0) return 0;
+  // Reset every failed/processing job in those batches.
+  await supabase
+    .from("jobs")
+    .update({
+      status: "pending",
+      attempts: 0,
+      started_at: null,
+      next_attempt_at: null,
+      error_message: null,
+    })
+    .in("batch_id", ids)
+    .in("status", ["failed", "processing"]);
+  await supabase
+    .from("job_batches")
+    .update({
+      status: "running",
+      pause_reason: null,
+      paused_at: null,
+    })
+    .in("id", ids);
+  return ids.length;
 }

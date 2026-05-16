@@ -11,6 +11,7 @@
 
 import { recordUsage } from "./usage";
 import { costForReplicateRuntime } from "./pricing";
+import { CreditExhaustedError } from "./credit-errors";
 
 const REPLICATE_API = "https://api.replicate.com/v1";
 
@@ -161,12 +162,21 @@ async function postWithBackoff(url: string, init: RequestInit, label: string): P
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(url, init);
     if (res.status !== 429) {
-      if (!res.ok) throw new Error(`${label} (${res.status}): ${await res.text()}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        if (res.status === 401) {
+          throw new CreditExhaustedError("replicate", `${label}: API token rejected (401): ${errText}`);
+        }
+        throw new Error(`${label} (${res.status}): ${errText}`);
+      }
       return res;
     }
     const body = await res.clone().json().catch(() => ({}));
     const wait = Math.max(1, Number(body?.retry_after) || 10);
     await new Promise((r) => setTimeout(r, wait * 1000));
   }
-  throw new Error(`${label}: rate-limited after retries.`);
+  throw new CreditExhaustedError(
+    "replicate",
+    `${label}: rate-limited after retries. Likely account credit < $5.`
+  );
 }

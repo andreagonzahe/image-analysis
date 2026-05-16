@@ -5,6 +5,7 @@ import type { CreatorProfile } from "./profile";
 import { profileSummaryForPrompt } from "./profile";
 import { recordUsage, type UsageOp } from "./usage";
 import { costForTogetherCall } from "./pricing";
+import { CreditExhaustedError } from "./credit-errors";
 
 const TOGETHER_URL = "https://api.together.xyz/v1/chat/completions";
 const DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
@@ -66,6 +67,15 @@ export async function decideStrategy(
 
     if (!res.ok) {
       const errText = await res.text();
+      // 402 = out of credit. 401 = invalid/missing key (functionally the
+      // same outcome — every job will fail until fixed, so pause the
+      // queue rather than burning attempts).
+      if (res.status === 402 || res.status === 401) {
+        throw new CreditExhaustedError(
+          "together",
+          res.status === 401 ? `API key rejected (401): ${errText}` : errText
+        );
+      }
       throw new Error(`Together API error ${res.status}: ${errText}`);
     }
 
