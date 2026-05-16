@@ -44,7 +44,19 @@ async function prepVideo(file: File, maxDim: number): Promise<string> {
 
     await new Promise<void>((resolve, reject) => {
       video!.onloadedmetadata = () => resolve();
-      video!.onerror = () => reject(new Error("Could not decode video file."));
+      video!.onerror = () => {
+        // Almost always a codec mismatch — iPhone .mov files often use
+        // HEVC (H.265) which Chrome / Firefox can't decode for canvas
+        // frame extraction. Safari handles them natively.
+        const isMov = /\.mov$/i.test(file.name);
+        reject(
+          new Error(
+            isMov
+              ? "Your browser can't decode this .mov file (likely iPhone HEVC). Two fixes: (1) open this page in Safari — it decodes .mov natively, or (2) convert to MP4 first with QuickTime → File → Export As → 1080p."
+              : "Could not decode video file. Try converting to .mp4 (H.264 codec) and uploading that."
+          )
+        );
+      };
     });
 
     const duration = video.duration || 0;
