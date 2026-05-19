@@ -41,6 +41,38 @@ type SortKey =
   | "unposted_first";
 type SourceFilter = "all" | "local" | "remote" | "both";
 type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
+type BodyFilter = "all" | "top" | "bottom" | "both" | "neither";
+
+/**
+ * Derive coarse "what's showing" categories from the captioner's tags.
+ * Inclusive: a post can be both top+bottom (then it's "both"). Used for
+ * the BodyFilter chips so a creator can quickly browse "all my topless
+ * stuff" or "things I shot with bottom focus".
+ */
+function deriveBodyCategories(post: MergedPost): { top: boolean; bottom: boolean } {
+  const tags = (post.analysis as { tags?: { attire?: string; body_parts_visible?: string[] } })?.tags;
+  if (!tags) return { top: false, bottom: false };
+  const parts = new Set(tags.body_parts_visible ?? []);
+  const attire = tags.attire ?? "unknown";
+  const revealing = ["swimwear", "lingerie", "underwear", "partial_nude", "fully_nude"];
+
+  const top =
+    parts.has("breasts") ||
+    parts.has("cleavage") ||
+    attire === "topless" ||
+    attire === "partial_nude" ||
+    attire === "fully_nude";
+
+  const bottom =
+    parts.has("buttocks") ||
+    parts.has("genitals") ||
+    attire === "fully_nude" ||
+    // Thighs only signal "bottom" with revealing attire context — thighs
+    // in a regular dress shouldn't show up under the bottom filter.
+    (parts.has("thighs") && revealing.includes(attire));
+
+  return { top, bottom };
+}
 
 type AuthState = { auth_enabled: boolean; sync_enabled: boolean; signed_in: boolean };
 
@@ -52,6 +84,7 @@ export default function VaultPage() {
   const [platformFilter, setPlatformFilter] = useState<string | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [bodyFilter, setBodyFilter] = useState<BodyFilter>("all");
   const [sort, setSort] = useState<SortKey>("recent");
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -165,6 +198,16 @@ export default function VaultPage() {
     } else if (statusFilter === "skipped") {
       out = out.filter((p) => p.status === "skipped");
     }
+    if (bodyFilter !== "all") {
+      out = out.filter((p) => {
+        const { top, bottom } = deriveBodyCategories(p);
+        if (bodyFilter === "top") return top && !bottom;
+        if (bodyFilter === "bottom") return !top && bottom;
+        if (bodyFilter === "both") return top && bottom;
+        if (bodyFilter === "neither") return !top && !bottom;
+        return true;
+      });
+    }
 
     const postedTime = (p: MergedPost) =>
       p.posted_at ? new Date(p.posted_at).getTime() : null;
@@ -226,7 +269,7 @@ export default function VaultPage() {
         break;
     }
     return out;
-  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, sort]);
+  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, bodyFilter, sort]);
 
   const platformsInVault = useMemo(() => {
     if (!posts) return [];
@@ -402,6 +445,13 @@ export default function VaultPage() {
               <Chip active={statusFilter === "not_posted"} onClick={() => setStatusFilter("not_posted")}>Not posted yet</Chip>
               <Chip active={statusFilter === "posted"} onClick={() => setStatusFilter("posted")}>Posted</Chip>
               <Chip active={statusFilter === "skipped"} onClick={() => setStatusFilter("skipped")}>Skipped</Chip>
+            </div>
+            <div className="chip-row">
+              <Chip active={bodyFilter === "all"} onClick={() => setBodyFilter("all")}>Anything showing</Chip>
+              <Chip active={bodyFilter === "top"} onClick={() => setBodyFilter("top")}>Top showing</Chip>
+              <Chip active={bodyFilter === "bottom"} onClick={() => setBodyFilter("bottom")}>Bottom showing</Chip>
+              <Chip active={bodyFilter === "both"} onClick={() => setBodyFilter("both")}>Both showing</Chip>
+              <Chip active={bodyFilter === "neither"} onClick={() => setBodyFilter("neither")}>Neither (modest)</Chip>
             </div>
             <div className="sort-row">
               <label htmlFor="sort" className="sort-label">Sort</label>
@@ -607,6 +657,21 @@ function VaultCard({
   };
 
   const isRemoteOnly = post.source === "remote";
+  const body = deriveBodyCategories(post);
+  const bodyLabel = body.top && body.bottom
+    ? "Top + Bottom"
+    : body.top
+      ? "Top"
+      : body.bottom
+        ? "Bottom"
+        : null;
+  const bodyClass = body.top && body.bottom
+    ? "body-badge body-badge-both"
+    : body.top
+      ? "body-badge body-badge-top"
+      : body.bottom
+        ? "body-badge body-badge-bottom"
+        : "";
 
   return (
     <article className="vault-card">
@@ -637,6 +702,7 @@ function VaultCard({
         ) : post.status && post.status !== "pending" ? (
           <span className={`status-badge status-badge-${post.status}`}>{post.status}</span>
         ) : null}
+        {bodyLabel && <span className={bodyClass}>{bodyLabel}</span>}
       </div>
       <div className="vault-body">
         <div className="vault-meta">

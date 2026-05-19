@@ -80,10 +80,15 @@ export async function GET() {
     primary_recommendation?: unknown;
     alternatives?: unknown;
     funnel_strategy?: unknown;
+    // Just the fields needed for the body-part category filter in the
+    // vault UI. The full tags object is still in the DB; this is the
+    // minimal subset we ship over the wire.
+    tags?: { attire?: string; body_parts_visible?: string[] };
   };
   const slim = (a: unknown): SlimAnalysis => {
     if (!a || typeof a !== "object") return {};
     const x = a as Record<string, unknown>;
+    const tagsIn = x.tags && typeof x.tags === "object" ? (x.tags as Record<string, unknown>) : null;
     return {
       content_rating: typeof x.content_rating === "string" ? x.content_rating : undefined,
       content_tier: typeof x.content_tier === "number" ? x.content_tier : undefined,
@@ -91,6 +96,14 @@ export async function GET() {
       primary_recommendation: x.primary_recommendation,
       alternatives: x.alternatives,
       funnel_strategy: x.funnel_strategy,
+      tags: tagsIn
+        ? {
+            attire: typeof tagsIn.attire === "string" ? tagsIn.attire : undefined,
+            body_parts_visible: Array.isArray(tagsIn.body_parts_visible)
+              ? (tagsIn.body_parts_visible as string[])
+              : undefined,
+          }
+        : undefined,
     };
   };
 
