@@ -173,7 +173,7 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
         // Otherwise loop immediately so we drain as fast as the worker can.
         const idle =
           body?.message === "No pending jobs." || (body?.processed ?? 0) === 0;
-        cooldownTimer = setTimeout(tick, idle ? 6000 : 200);
+        cooldownTimer = setTimeout(tick, idle ? 6000 : 0);
       } catch {
         // Don't kill the loop on transient errors — try again in 6s.
         if (!stopped) cooldownTimer = setTimeout(tick, 6000);

@@ -25,13 +25,13 @@ import type { ImageTags } from "@/lib/captioner";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// 3 jobs/tick. Replicate's "regular" rate tier (account credit > $5) is
-// 600 predictions/min with much higher burst than the < $5 throttled tier.
-// 3 jobs × up to 3 Replicate calls each = ~9 concurrent — comfortably
-// within the regular tier and dramatically faster than 1/tick for large
-// imports (9k photos drop from ~30h → ~10h). If you ever drop below $5
-// credit again, knock this back down to 1.
-const JOBS_PER_TICK = 3;
+// 8 jobs/tick. Replicate's "regular" tier allows ~600 predictions/min with
+// generous burst. 8 jobs × up to 3 Replicate calls each = ~24 concurrent
+// — well within the tier. Lets a 9k-photo import finish in ~5-6h instead
+// of ~10-15h. If credit ever drops below $5 the auto-pause kicks in
+// before this becomes a problem; if you see sustained throttle warnings,
+// knock back to 3.
+const JOBS_PER_TICK = 8;
 
 const NO_NUDITY_PLATFORMS = PLATFORMS.filter((p) => p.policy === "no-nudity").map((p) => p.id);
 const PAID_PLATFORMS = PLATFORMS.filter((p) => p.paid).map((p) => p.id);
@@ -252,13 +252,15 @@ async function runAnalyze(job: Job): Promise<void> {
   // Avoids fetching + decoding the source three times when the file is HEIC.
   const ready = await prepImageForReplicate(url, String(job.input.name ?? ""));
 
-  // Run Replicate calls SEQUENTIALLY (NSFW then captioner) to avoid burst
-  // concurrent-limit 429s. fetchProfile is Supabase, runs in parallel with
-  // both since it's a different upstream.
-  const profilePromise = fetchProfile();
-  const nsfw = await classifyNsfw(ready, job.user_id);
-  const captioned = await captionImage(ready, job.user_id);
-  const profile = await profilePromise;
+  // Run NSFW + captioner in parallel — they're independent and both hit
+  // Replicate's regular tier with plenty of burst headroom. Cuts analyze
+  // wall-time roughly in half vs sequential. fetchProfile is Supabase, so
+  // it just rides along.
+  const [nsfw, captioned, profile] = await Promise.all([
+    classifyNsfw(ready, job.user_id),
+    captionImage(ready, job.user_id),
+    fetchProfile(),
+  ]);
 
   const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, job.user_id);
   const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);

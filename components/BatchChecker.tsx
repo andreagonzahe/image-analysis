@@ -64,8 +64,10 @@ export function BatchChecker({ signedIn }: { signedIn: boolean }) {
       // We have work. Fire the cron and chain.
       const idle = await fireCron();
       // If idle (rate-limited or queue empty), back off 6s. Otherwise fire
-      // again immediately — the just-resolved tick freed worker capacity.
-      schedule(idle ? 6_000 : 200, loop);
+      // again as soon as React releases the microtask — the just-resolved
+      // tick freed worker capacity and the cron is doing the rate-limit
+      // shaping anyway.
+      schedule(idle ? 6_000 : 0, loop);
     };
 
     // Kick off after a tiny delay so the rest of the page loads first.
