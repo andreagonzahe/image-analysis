@@ -5,7 +5,7 @@
 
 import { getSupabase, isSupabaseConfigured } from "./supabase-server";
 
-export type JobKind = "prefilter" | "analyze_image";
+export type JobKind = "screen" | "prefilter" | "analyze_image";
 export type JobStatus = "pending" | "processing" | "done" | "failed" | "skipped";
 
 export type Job = {

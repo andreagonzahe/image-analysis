@@ -19,6 +19,7 @@ type BatchStatus = {
   };
   counts: Record<string, number>;
   by_kind: {
+    screen?: Record<string, number>;
     prefilter: Record<string, number>;
     analyze_image: Record<string, number>;
   };
@@ -236,15 +237,18 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
     etaLabel = `Estimated ${staticRange(remaining)} total`;
   }
 
-  // Split out the two passes
+  // Split out the three passes
+  const scr = data.by_kind.screen ?? {};
   const pre = data.by_kind.prefilter ?? {};
   const ana = data.by_kind.analyze_image ?? {};
+  const scrDone = (scr.done ?? 0) + (scr.skipped ?? 0);
+  const scrTotal = (scr.pending ?? 0) + (scr.processing ?? 0) + (scr.done ?? 0) + (scr.skipped ?? 0) + (scr.failed ?? 0);
   const preDone = (pre.done ?? 0) + (pre.skipped ?? 0);
   const preTotal = (pre.pending ?? 0) + (pre.processing ?? 0) + (pre.done ?? 0) + (pre.skipped ?? 0) + (pre.failed ?? 0);
   const anaDone = (ana.done ?? 0);
   const anaTotal = (ana.pending ?? 0) + (ana.processing ?? 0) + (ana.done ?? 0) + (ana.failed ?? 0);
   const kept = ana.done ?? 0;
-  const skipped = pre.skipped ?? 0;
+  const skipped = (scr.skipped ?? 0) + (pre.skipped ?? 0);
 
   return (
     <main>
@@ -306,6 +310,22 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       <div className="status-grid">
+        {scrTotal > 0 && (
+          <div className="card status-pass">
+            <h3>Pass 0 — Screen</h3>
+            <p className="status-pass-sub">Free dedup + blur check. No AI cost.</p>
+            <div className="status-pass-meta">
+              <div><span className="status-pass-num">{scrDone.toLocaleString()}</span> / {scrTotal.toLocaleString()}</div>
+              <div className="status-pass-detail">
+                <span className="status-chip status-chip-kept">{(scr.done ?? 0).toLocaleString()} kept</span>
+                <span className="status-chip status-chip-skipped">{(scr.skipped ?? 0).toLocaleString()} skipped</span>
+                <span className="status-chip status-chip-pending">{(scr.pending ?? 0).toLocaleString()} pending</span>
+                {Boolean(scr.failed) && <span className="status-chip status-chip-failed">{(scr.failed ?? 0).toLocaleString()} failed</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card status-pass">
           <h3>Pass 1 — Pre-filter</h3>
           <p className="status-pass-sub">Cheap classifier: keep this, skip that.</p>
@@ -313,7 +333,7 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
             <div><span className="status-pass-num">{preDone.toLocaleString()}</span> / {preTotal.toLocaleString()}</div>
             <div className="status-pass-detail">
               <span className="status-chip status-chip-kept">{(pre.done ?? 0).toLocaleString()} kept</span>
-              <span className="status-chip status-chip-skipped">{skipped.toLocaleString()} skipped</span>
+              <span className="status-chip status-chip-skipped">{(pre.skipped ?? 0).toLocaleString()} skipped</span>
               <span className="status-chip status-chip-pending">{(pre.pending ?? 0).toLocaleString()} pending</span>
               {Boolean(pre.failed) && <span className="status-chip status-chip-failed">{(pre.failed ?? 0).toLocaleString()} failed</span>}
             </div>

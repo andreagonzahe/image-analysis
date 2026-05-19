@@ -109,12 +109,14 @@ export async function POST(req: Request) {
       total_jobs: files.length,
     });
 
-    // Enqueue prefilter jobs. Each carries the Dropbox file id so the worker
-    // can fetch a temporary URL when it picks the job up (avoids stale URLs).
+    // Enqueue SCREEN jobs first (the free pre-filter pass: dedup + blur).
+    // Each survivor will then enqueue a prefilter job, which on KEEP
+    // enqueues the full analyze_image. Three-stage funnel: cheap → cheap →
+    // expensive, so we burn AI credit only on the photos worth analyzing.
     await enqueueJobs(
       files.map((f) => ({
         user_id: userId,
-        kind: "prefilter" as const,
+        kind: "screen" as const,
         batch_id: batch.id,
         input: {
           source: "dropbox",

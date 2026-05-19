@@ -36,6 +36,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     failed: 0,
   } as Record<string, number>;
   const byKind = {
+    screen: { pending: 0, processing: 0, done: 0, skipped: 0, failed: 0 },
     prefilter: { pending: 0, processing: 0, done: 0, skipped: 0, failed: 0 },
     analyze_image: { pending: 0, processing: 0, done: 0, skipped: 0, failed: 0 },
   } as Record<string, Record<string, number>>;

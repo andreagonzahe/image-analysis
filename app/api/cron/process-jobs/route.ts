@@ -17,6 +17,14 @@ import { decideStrategy } from "@/lib/strategist";
 import { fetchProfile } from "@/lib/profile-server";
 import { prepImageForReplicate } from "@/lib/image-prep-server";
 import { sweepReplicateDeletions } from "@/lib/replicate-cleanup";
+import {
+  computeFingerprint,
+  hammingDistance,
+  phashFromString,
+  phashToString,
+  HAMMING_THRESHOLD,
+  BLUR_THRESHOLD_LOOSE,
+} from "@/lib/image-fingerprint";
 import { PLATFORMS } from "@/lib/platforms";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
@@ -188,7 +196,9 @@ function authorized(req: Request): boolean {
 
 async function processJob(job: Job): Promise<void> {
   try {
-    if (job.kind === "prefilter") {
+    if (job.kind === "screen") {
+      await runScreen(job);
+    } else if (job.kind === "prefilter") {
       await runPrefilter(job);
     } else if (job.kind === "analyze_image") {
       await runAnalyze(job);
@@ -213,6 +223,141 @@ async function resolveImageUrl(userId: string, input: Record<string, unknown>): 
   }
   if (typeof input.url === "string") return input.url;
   throw new Error(`Unsupported job input source: ${source}`);
+}
+
+/**
+ * Screen job — cheap, no AI calls. Fetches the Dropbox thumbnail,
+ * computes pHash + blur. If blurry, skips immediately. Otherwise checks
+ * for near-duplicates against earlier keepers in the same batch; if dup,
+ * also skip. Survivors get a prefilter job enqueued.
+ *
+ * Why this exists: the AI calls (Qwen-VL, Together) cost ~$0.005-0.01
+ * per image. Doing a free dedup + blur pre-screen typically drops 30-50%
+ * of an unfiltered library before any paid call runs.
+ */
+async function runScreen(job: Job): Promise<void> {
+  const supabase = getSupabase();
+  const filename = String(job.input.name ?? "");
+
+  // 1. Fetch the thumbnail (256×256 from Dropbox proxy). Tiny payload,
+  //    no Replicate cost.
+  const thumbBytes = await fetchScreenThumb(job.user_id, job.input);
+  if (!thumbBytes) {
+    // Couldn't get a thumb — let it through. Better to over-spend AI on
+    // a fingerprint failure than to silently drop a real photo.
+    await enqueuePrefilterFromScreen(job);
+    await markJobDone(job.id, {
+      screened: true,
+      kept: true,
+      reason: "no-thumb-fingerprint-skipped",
+    });
+    return;
+  }
+
+  // 2. Compute fingerprint.
+  const fp = await computeFingerprint(thumbBytes);
+  if (!fp) {
+    // Image format unrecognized by sharp — let it through.
+    await enqueuePrefilterFromScreen(job);
+    await markJobDone(job.id, {
+      screened: true,
+      kept: true,
+      reason: "no-fingerprint-skipped",
+    });
+    return;
+  }
+
+  const phashStr = phashToString(fp.phash);
+
+  // 3. Blur check — loose threshold (BLUR_THRESHOLD_LOOSE = 25).
+  if (fp.blur_score < BLUR_THRESHOLD_LOOSE) {
+    await markJobSkipped(
+      job.id,
+      `blurry (Laplacian variance ${fp.blur_score.toFixed(1)} < ${BLUR_THRESHOLD_LOOSE}): ${filename}`
+    );
+    return;
+  }
+
+  // 4. Dedup check — compare against earlier completed screens in this
+  //    batch that were marked as "kept". Limit to recent 1000 keepers
+  //    for bounded comparison cost on large batches.
+  if (job.batch_id) {
+    const { data: earlierKeepers } = await supabase
+      .from("jobs")
+      .select("output")
+      .eq("batch_id", job.batch_id)
+      .eq("kind", "screen")
+      .eq("status", "done")
+      .order("completed_at", { ascending: false })
+      .limit(1000);
+    for (const k of earlierKeepers ?? []) {
+      const out = k.output as { kept?: boolean; phash?: string } | null;
+      if (!out?.kept || !out.phash) continue;
+      const earlierHash = phashFromString(out.phash);
+      if (hammingDistance(fp.phash, earlierHash) <= HAMMING_THRESHOLD) {
+        await markJobSkipped(
+          job.id,
+          `near-duplicate of an earlier shot in this batch (Hamming ≤ ${HAMMING_THRESHOLD})`
+        );
+        return;
+      }
+    }
+  }
+
+  // 5. Survived — enqueue prefilter + mark this screen as a keeper with
+  //    the fingerprint stored for dedup checks of later screens.
+  await enqueuePrefilterFromScreen(job);
+  await markJobDone(job.id, {
+    screened: true,
+    kept: true,
+    phash: phashStr,
+    blur_score: fp.blur_score,
+    width: fp.width,
+    height: fp.height,
+  });
+}
+
+/**
+ * Fetch a 256×256 thumbnail for an image source we can fingerprint
+ * cheaply. Returns null if the source isn't supported.
+ */
+async function fetchScreenThumb(
+  userId: string,
+  input: Record<string, unknown>
+): Promise<Buffer | null> {
+  try {
+    const source = String(input.source ?? "");
+    if (source === "dropbox") {
+      const { getConnectionForUser, getThumbnailBytes } = await import("@/lib/dropbox");
+      const conn = await getConnectionForUser(userId);
+      if (!conn) return null;
+      const fileId = String(input.dropbox_file_id);
+      const t = await getThumbnailBytes(conn.access_token, fileId, "w256h256");
+      return t?.bytes ?? null;
+    }
+    // For url-sourced jobs, just fetch.
+    if (typeof input.url === "string") {
+      const r = await fetch(input.url);
+      if (!r.ok) return null;
+      return Buffer.from(await r.arrayBuffer());
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** After a screen passes, queue a prefilter job for the same file. */
+async function enqueuePrefilterFromScreen(job: Job): Promise<void> {
+  await enqueueJobs([
+    {
+      user_id: job.user_id,
+      kind: "prefilter" as const,
+      batch_id: job.batch_id,
+      input: job.input,
+      priority: 5, // bump above further screens so the pipeline drains evenly
+    },
+  ]);
 }
 
 async function runPrefilter(job: Job): Promise<void> {
