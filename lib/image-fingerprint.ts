@@ -24,10 +24,27 @@ export type Fingerprint = {
   byte_size: number;
 };
 
-// Thresholds set deliberately loose per the user's spec (5-10% drop
-// rate). Tune by adjusting these constants — no callsite changes needed.
-export const BLUR_THRESHOLD_LOOSE = 25; // anything under is considered blurry
-export const HAMMING_THRESHOLD = 8; // 8/64 bits = near-duplicate
+// Thresholds.
+//
+//   BLUR_THRESHOLD_LOOSE — Laplacian variance below this = blurry,
+//                          gets dropped before any paid call.
+//
+//   HAMMING_THRESHOLD    — bits-different cutoff for "this is the same
+//                          shot as one we already kept." Calibrated to
+//                          catch "1 per pose" — i.e. burst-shot
+//                          variants, slight angle/lighting shifts of
+//                          the same composition all collapse to one
+//                          keeper. With the 2-bit-per-row dHash we
+//                          use, real-world bit-distance bands are:
+//                            0–4   exact / near-exact reupload
+//                            5–10  burst shot, tiny pose drift
+//                            11–14 same pose, retake — STILL DEDUP
+//                            15–22 same scene, different angle
+//                            23+   unrelated
+//                          12 = aggressive enough to collapse retakes
+//                          without merging genuinely different angles.
+export const BLUR_THRESHOLD_LOOSE = 25;
+export const HAMMING_THRESHOLD = 12;
 
 /**
  * Compute pHash + blur score from raw image bytes. Returns null on

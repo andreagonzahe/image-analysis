@@ -244,8 +244,9 @@ async function runScreen(job: Job): Promise<void> {
   const thumbBytes = await fetchScreenThumb(job.user_id, job.input);
   if (!thumbBytes) {
     // Couldn't get a thumb — let it through. Better to over-spend AI on
-    // a fingerprint failure than to silently drop a real photo.
-    await enqueuePrefilterFromScreen(job);
+    // a fingerprint failure than to silently drop a real photo. No
+    // phash to thread through; this post won't be dedup-able later.
+    await enqueuePrefilterFromScreen(job, "");
     await markJobDone(job.id, {
       screened: true,
       kept: true,
@@ -258,7 +259,7 @@ async function runScreen(job: Job): Promise<void> {
   const fp = await computeFingerprint(thumbBytes);
   if (!fp) {
     // Image format unrecognized by sharp — let it through.
-    await enqueuePrefilterFromScreen(job);
+    await enqueuePrefilterFromScreen(job, "");
     await markJobDone(job.id, {
       screened: true,
       kept: true,
@@ -278,9 +279,33 @@ async function runScreen(job: Job): Promise<void> {
     return;
   }
 
-  // 4. Dedup check — compare against earlier completed screens in this
-  //    batch that were marked as "kept". Limit to recent 1000 keepers
-  //    for bounded comparison cost on large batches.
+  // 4a. Cross-batch dedup — compare against EVERY existing vault post
+  //     for this user. Catches the "re-imported the same Dropbox folder"
+  //     case. RLS scopes this to the current user automatically.
+  //     Backfilled phashes come from either (a) post insertion after
+  //     this migration ran, or (b) the retroactive vault scanner which
+  //     persists phashes for older posts as it walks them.
+  const { data: vaultPhashes } = await supabase
+    .from("posts")
+    .select("phash")
+    .eq("user_id", job.user_id)
+    .not("phash", "is", null);
+  for (const row of vaultPhashes ?? []) {
+    if (!row.phash) continue;
+    const vaultHash = phashFromString(row.phash as string);
+    if (hammingDistance(fp.phash, vaultHash) <= HAMMING_THRESHOLD) {
+      await markJobSkipped(
+        job.id,
+        `already in vault — same pose as an existing post (Hamming ≤ ${HAMMING_THRESHOLD})`
+      );
+      return;
+    }
+  }
+
+  // 4b. Same-batch dedup — compare against earlier completed screens in
+  //     the same batch that were marked as "kept". Catches dupes within
+  //     the current import that haven't been written to posts yet.
+  //     Limit to recent 1000 keepers for bounded comparison cost.
   if (job.batch_id) {
     const { data: earlierKeepers } = await supabase
       .from("jobs")
@@ -305,8 +330,9 @@ async function runScreen(job: Job): Promise<void> {
   }
 
   // 5. Survived — enqueue prefilter + mark this screen as a keeper with
-  //    the fingerprint stored for dedup checks of later screens.
-  await enqueuePrefilterFromScreen(job);
+  //    the fingerprint stored for dedup checks of later screens AND for
+  //    the eventual post insert (passed through the job chain).
+  await enqueuePrefilterFromScreen(job, phashStr);
   await markJobDone(job.id, {
     screened: true,
     kept: true,
@@ -347,14 +373,25 @@ async function fetchScreenThumb(
   }
 }
 
-/** After a screen passes, queue a prefilter job for the same file. */
-async function enqueuePrefilterFromScreen(job: Job): Promise<void> {
+/**
+ * After a screen passes, queue a prefilter job for the same file. We
+ * attach the computed phash to the input payload so it rides through
+ * prefilter → analyze and ends up persisted on the post — enabling
+ * cross-batch dedup of future imports against this very post.
+ */
+async function enqueuePrefilterFromScreen(job: Job, phash: string): Promise<void> {
+  // Drop screen_phash entirely if we couldn't compute one — keeps the
+  // post-insert site simple (presence-only check) and avoids storing
+  // an empty string that breaks future Hamming comparisons.
+  const input = phash
+    ? { ...job.input, screen_phash: phash }
+    : job.input;
   await enqueueJobs([
     {
       user_id: job.user_id,
       kind: "prefilter" as const,
       batch_id: job.batch_id,
-      input: job.input,
+      input,
       priority: 5, // bump above further screens so the pipeline drains evenly
     },
   ]);
@@ -372,8 +409,9 @@ async function runPrefilter(job: Job): Promise<void> {
     return;
   }
 
-  // Enqueue an analyze_image job for the keeper. Same input payload so the
-  // analyzer can resolve a fresh Dropbox temp URL when it runs.
+  // Enqueue an analyze_image job for the keeper. Forward the full input
+  // (incl. screen_phash, if present) so the analyzer can write the
+  // perceptual hash to the post for future cross-batch dedup.
   await enqueueJobs([
     {
       user_id: job.user_id,
@@ -449,6 +487,10 @@ async function runAnalyze(job: Job): Promise<void> {
     image_external_id: job.input.source === "dropbox" ? (job.input.dropbox_file_id as string) : null,
     image_path: null as string | null,
     status: "pending",
+    // Persist the screen pass's pHash so future imports can dedup
+    // against this post (cross-batch). Falls back to null if this job
+    // came in through a path that skipped the screen pass.
+    phash: typeof job.input.screen_phash === "string" ? job.input.screen_phash : null,
   };
 
   const { error } = await supabase.from("posts").insert(row);

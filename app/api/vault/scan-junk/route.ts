@@ -6,6 +6,7 @@ import {
   computeFingerprint,
   hammingDistance,
   HAMMING_THRESHOLD,
+  phashToString,
 } from "@/lib/image-fingerprint";
 
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function GET() {
   const supabase = getSupabase();
   const { data: rows, error } = await supabase
     .from("posts")
-    .select("id, created_at, analysis, image_source, image_external_id, image_path, primary_platform")
+    .select("id, created_at, analysis, image_source, image_external_id, image_path, primary_platform, phash")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) {
@@ -75,11 +76,36 @@ export async function GET() {
   const conn = await getConnectionForUser(userId);
   const fingerprints: Array<{ id: string; phash: bigint; created_at: number }> = [];
 
-  if (conn && dropboxPosts.length > 0) {
-    // Parallelize in chunks of 16 to avoid hammering Dropbox.
+  // Posts that already have a stored phash from the screen pass — skip
+  // re-fetching their thumbnail. Saves a lot of Dropbox bandwidth on
+  // subsequent scans.
+  for (const p of dropboxPosts) {
+    const stored = p.phash as string | null;
+    if (stored) {
+      try {
+        const { phashFromString } = await import("@/lib/image-fingerprint");
+        fingerprints.push({
+          id: p.id as string,
+          phash: phashFromString(stored),
+          created_at: new Date(p.created_at as string).getTime(),
+        });
+      } catch {
+        // bad stored hash → fall through to recompute below
+      }
+    }
+  }
+  const alreadyHashed = new Set(fingerprints.map((f) => f.id));
+  const needHash = dropboxPosts.filter((p) => !alreadyHashed.has(p.id as string));
+
+  // For posts missing a phash (created before the column existed, or
+  // direct-upload posts whose screen pass predates the threading work),
+  // compute it from the Dropbox thumbnail AND backfill the row so the
+  // next import can cross-batch dedup against it for free.
+  const backfills: Array<{ id: string; phash: string }> = [];
+  if (conn && needHash.length > 0) {
     const CHUNK = 16;
-    for (let i = 0; i < dropboxPosts.length; i += CHUNK) {
-      const batch = dropboxPosts.slice(i, i + CHUNK);
+    for (let i = 0; i < needHash.length; i += CHUNK) {
+      const batch = needHash.slice(i, i + CHUNK);
       const results = await Promise.allSettled(
         batch.map(async (p) => {
           const fileId = p.image_external_id as string;
@@ -90,16 +116,36 @@ export async function GET() {
           return {
             id: p.id as string,
             phash: fp.phash,
+            phashStr: phashToString(fp.phash),
             created_at: new Date(p.created_at as string).getTime(),
           };
         })
       );
       for (const r of results) {
         if (r.status === "fulfilled" && r.value) {
-          fingerprints.push(r.value);
+          fingerprints.push({
+            id: r.value.id,
+            phash: r.value.phash,
+            created_at: r.value.created_at,
+          });
+          backfills.push({ id: r.value.id, phash: r.value.phashStr });
         }
       }
     }
+  }
+
+  // Persist backfilled phashes so future imports cross-batch-dedup
+  // against them. Best-effort — errors don't fail the scan.
+  if (backfills.length > 0) {
+    await Promise.allSettled(
+      backfills.map((b) =>
+        supabase
+          .from("posts")
+          .update({ phash: b.phash })
+          .eq("id", b.id)
+          .eq("user_id", userId)
+      )
+    );
   }
 
   // Cluster by Hamming distance. Simple O(n²) — n is hundreds-to-thousands,
