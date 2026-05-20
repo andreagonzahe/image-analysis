@@ -10,6 +10,16 @@ import { BatchQueue } from "@/components/BatchQueue";
 import { prepImage } from "@/lib/image-prep";
 import Link from "next/link";
 
+/** Build a useful filename for the downloaded image. Encodes the
+ *  recommended platform + content tier so the user can sort their
+ *  Downloads folder by what's going where. */
+function downloadFilenameForResult(result: FullResult): string {
+  const platform = result.primary_recommendation?.platform ?? "post";
+  const tier = result.content_tier ?? "x";
+  const date = new Date().toISOString().slice(0, 10);
+  return `postwise-${platform}-T${tier}-${date}.jpg`;
+}
+
 function ValueProp() {
   return (
     <section className="valueprop">
@@ -231,6 +241,17 @@ export default function Home() {
             {image && <img src={image} alt="Analyzed" />}
             <div style={{ padding: 14, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
               {image && result && <SaveButton imageDataUrl={image} analysis={result} />}
+              {image && (
+                <a
+                  href={image}
+                  download={downloadFilenameForResult(result)}
+                  className="btn btn-secondary"
+                  style={{ width: "100%", textAlign: "center" }}
+                  title="Save this image to your computer so you can post it to the recommended platform"
+                >
+                  ⬇ Download image
+                </a>
+              )}
               <button className="btn-ghost" onClick={reset} style={{ width: "100%" }}>
                 Analyze another image
               </button>

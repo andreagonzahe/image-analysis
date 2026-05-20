@@ -9,6 +9,65 @@ import { PLATFORMS } from "@/lib/platforms";
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 
 /**
+ * Trigger a file download for a vault post. Three sources, picked in
+ * priority order:
+ *   1. Local IndexedDB image_blob (best — original bytes, no network)
+ *   2. Dropbox file id → /api/dropbox/file proxy (original bytes from
+ *      Dropbox, served as attachment so the browser saves it)
+ *   3. Supabase signed image_url → simple <a download> attribute
+ *
+ * The filename encodes platform + tier + date so the user's Downloads
+ * folder is browseable.
+ */
+function downloadVaultImage(post: MergedPost) {
+  const filename = downloadFilenameForPost(post);
+
+  // 1. Local blob (the highest-fidelity source we have).
+  if (post.image_blob) {
+    const url = URL.createObjectURL(post.image_blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+
+  // 2. Dropbox-sourced — go through our full-file download proxy so the
+  //    response has Content-Disposition: attachment.
+  if (
+    (post as MergedPost & { image_source?: string }).image_source === "dropbox" &&
+    (post as MergedPost & { image_external_id?: string }).image_external_id
+  ) {
+    const fileId = (post as MergedPost & { image_external_id: string }).image_external_id;
+    window.location.href =
+      "/api/dropbox/file/" + encodeURIComponent(fileId) +
+      "?filename=" + encodeURIComponent(filename);
+    return;
+  }
+
+  // 3. Supabase signed URL — use a temp <a> with download attribute.
+  if (post.remote_image_url) {
+    const a = document.createElement("a");
+    a.href = post.remote_image_url;
+    a.download = filename;
+    a.target = "_blank";
+    a.click();
+    return;
+  }
+
+  alert("Couldn't download — the original image isn't available on this device or in your cloud vault.");
+}
+
+function downloadFilenameForPost(post: MergedPost): string {
+  const a = post.analysis as { content_tier?: number; primary_recommendation?: { platform?: string } } | null;
+  const platform = a?.primary_recommendation?.platform ?? post.primary_platform ?? "post";
+  const tier = a?.content_tier ?? "x";
+  const date = new Date(post.created_at).toISOString().slice(0, 10);
+  return `postwise-${platform}-T${tier}-${date}.jpg`;
+}
+
+/**
  * Compact "posted N ago" — kept short so it fits inside the badge corner.
  * Hours when <1d, days when <30d, otherwise the date. Always says "Posted".
  */
@@ -722,6 +781,13 @@ function VaultCard({
               Open {platformName(pr.platform)} →
             </a>
           )}
+          <button
+            className="btn-ghost"
+            onClick={() => downloadVaultImage(post)}
+            title="Save the original image to your computer"
+          >
+            ⬇ Download
+          </button>
           {post.status === "posted" ? (
             <button
               className="btn-ghost"
