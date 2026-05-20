@@ -4660,7 +4660,7 @@ h1.title {
   box-shadow: var(--shadow-card);
 }
 
-/* View-mode tabs: All photos / By shoot / By body part */
+/* View-mode tabs: All photos / Shoots / Body parts */
 .vault-view-tabs {
   display: flex;
   gap: 6px;
@@ -4671,13 +4671,15 @@ h1.title {
   border-radius: 12px;
   box-shadow: var(--shadow-card);
   width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .vault-view-tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 9px 18px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-soft);
@@ -4686,7 +4688,13 @@ h1.title {
   border-radius: 9px;
   cursor: pointer;
   font-family: inherit;
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
+}
+
+.vault-view-tab-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .vault-view-tab:hover {
@@ -4730,33 +4738,59 @@ h1.title {
   color: var(--text-soft);
 }
 
-/* Folder grid (used by both "By shoot" and "By body part" views) */
-.vault-folder-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+/* Help paragraph above a folder grid — explains what a click does. */
+.vault-folder-help {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  background: var(--bg-warm);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13.5px;
+  color: var(--text-soft);
+  line-height: 1.45;
 }
 
 .vault-folder-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 4px 12px 12px 12px; /* squared top-left to mate with the tab */
   box-shadow: var(--shadow-card);
-  overflow: hidden;
   cursor: pointer;
   padding: 0;
   font-family: inherit;
   text-align: left;
-  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+  /* Make room for the folder tab that sits ON TOP of the card. */
+  margin-top: 14px;
 }
 
 .vault-folder-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--muted);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transform: translateY(-3px);
+  border-color: var(--accent, var(--muted));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+.vault-folder-card:hover .vault-folder-tab {
+  background: var(--accent, var(--text-soft));
+}
+
+/* The angled flap at the top-left — sells the manila-folder metaphor.
+ * Sits behind the card body so the card edge gives it a clean cutoff. */
+.vault-folder-tab {
+  position: absolute;
+  top: -10px;
+  left: 8px;
+  width: 80px;
+  height: 14px;
+  background: var(--text-soft);
+  border-radius: 6px 6px 0 0;
+  /* Trapezoid via clip-path: wider on top, narrower at the card edge. */
+  clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+  z-index: 0;
+  transition: background 0.14s ease;
 }
 
 .vault-folder-thumb {
@@ -4764,6 +4798,8 @@ h1.title {
   aspect-ratio: 1 / 1;
   background: var(--bg-warm);
   overflow: hidden;
+  border-radius: 3px 11px 0 0;
+  z-index: 1;
 }
 
 .vault-folder-thumb img {
@@ -4779,45 +4815,64 @@ h1.title {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40px;
   color: var(--muted);
 }
 
 .vault-folder-count {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 3px 10px;
-  font-size: 12px;
+  top: 10px;
+  right: 10px;
+  padding: 4px 11px;
+  font-size: 13px;
   font-weight: 700;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
   border-radius: 999px;
   letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Small folder emoji in the lower-left of the thumb — secondary
+ * affordance reinforcing that this is a clickable folder. */
+.vault-folder-icon {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 22px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  line-height: 1;
 }
 
 .vault-folder-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 12px 12px;
+  padding: 12px 14px 14px;
 }
 
 .vault-folder-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text);
   line-height: 1.3;
   word-break: break-word;
 }
 
 .vault-folder-subtitle {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* Slightly bigger cards (≥4 per row on wide screens, 2 per row on phones). */
+.vault-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 22px 18px;
+  margin-bottom: 28px;
 }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }

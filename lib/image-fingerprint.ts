@@ -16,6 +16,17 @@
 
 import sharp from "sharp";
 
+// Re-export the pure-JS helpers from the client-safe module so the
+// server-side callsites don't have to know there are two homes for
+// pHash code. New code should import directly from "./phash-utils".
+export {
+  hammingDistance,
+  phashFromString,
+  phashToString,
+  HAMMING_DUP_THRESHOLD,
+  HAMMING_SHOOT_THRESHOLD,
+} from "./phash-utils";
+
 export type Fingerprint = {
   phash: bigint; // 64-bit; serialize as string when going through JSON
   blur_score: number; // Laplacian variance — empirical scale ~0..1000+
@@ -45,7 +56,11 @@ export type Fingerprint = {
 //                          12 = aggressive enough to collapse retakes
 //                          without merging genuinely different angles.
 export const BLUR_THRESHOLD_LOOSE = 25;
-export const HAMMING_THRESHOLD = 12;
+// HAMMING_THRESHOLD is the legacy dedup threshold name. New code uses
+// HAMMING_DUP_THRESHOLD (re-exported above from phash-utils). Kept as
+// an alias so the older callsites (process-jobs, scan-junk) continue
+// to compile without churn.
+export { HAMMING_DUP_THRESHOLD as HAMMING_THRESHOLD } from "./phash-utils";
 
 // Screenshot heuristic. A screenshot has huge flat-color regions
 // (chat background, app surface, web page body) — usually 60-80% of
@@ -192,27 +207,6 @@ function computeTextScore(grayRaw: Buffer): number {
   return max / grayRaw.length;
 }
 
-/**
- * Hamming distance between two 64-bit pHash values. Result is in 0..64.
- * Smaller = more similar. <=8 is our default "near-duplicate" threshold.
- */
-export function hammingDistance(a: bigint, b: bigint): number {
-  let x = a ^ b;
-  let count = 0;
-  while (x !== 0n) {
-    count += Number(x & 1n);
-    x >>= 1n;
-  }
-  return count;
-}
-
-/**
- * Serialization helpers — bigint doesn't survive JSON natively, so we
- * cast to string when storing on a job and parse back when comparing.
- */
-export function phashToString(h: bigint): string {
-  return h.toString(16).padStart(16, "0");
-}
-export function phashFromString(s: string): bigint {
-  return BigInt("0x" + s);
-}
+// hammingDistance, phashToString, phashFromString are re-exported from
+// "./phash-utils" at the top of this file — they live there so client
+// code can import them without dragging sharp into the bundle.

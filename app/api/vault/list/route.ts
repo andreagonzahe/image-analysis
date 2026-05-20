@@ -19,6 +19,7 @@ type PostRow = {
   image_source: "supabase_storage" | "dropbox";
   image_external_id: string | null;
   source_folder: string | null;
+  phash: string | null;
   status: "pending" | "scheduled" | "posted" | "skipped";
   posted_at: string | null;
   posted_on_platform: string | null;
@@ -39,7 +40,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("posts")
-    .select("id, created_at, analysis, content_rating, primary_platform, primary_price_low, primary_price_high, image_path, image_source, image_external_id, source_folder, status, posted_at, posted_on_platform, scheduled_for, notes")
+    .select("id, created_at, analysis, content_rating, primary_platform, primary_price_low, primary_price_high, image_path, image_source, image_external_id, source_folder, phash, status, posted_at, posted_on_platform, scheduled_for, notes")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -84,7 +85,13 @@ export async function GET() {
     // Just the fields needed for the body-part category filter in the
     // vault UI. The full tags object is still in the DB; this is the
     // minimal subset we ship over the wire.
-    tags?: { attire?: string; body_parts_visible?: string[] };
+    tags?: {
+      attire?: string;
+      body_parts_visible?: string[];
+      sensuality?: string;
+      pose_intent?: string;
+      scene?: string;
+    };
   };
   const slim = (a: unknown): SlimAnalysis => {
     if (!a || typeof a !== "object") return {};
@@ -103,6 +110,9 @@ export async function GET() {
             body_parts_visible: Array.isArray(tagsIn.body_parts_visible)
               ? (tagsIn.body_parts_visible as string[])
               : undefined,
+            sensuality: typeof tagsIn.sensuality === "string" ? tagsIn.sensuality : undefined,
+            pose_intent: typeof tagsIn.pose_intent === "string" ? tagsIn.pose_intent : undefined,
+            scene: typeof tagsIn.scene === "string" ? tagsIn.scene : undefined,
           }
         : undefined,
     };

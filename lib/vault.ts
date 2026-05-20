@@ -26,6 +26,7 @@ export type RemotePost = {
   image_path: string | null;
   image_url: string | null; // signed URL valid for ~1 hour
   source_folder: string | null;
+  phash: string | null; // 16-char hex; used for visual-similarity shoot clustering
   status: PostStatus;
   posted_at: string | null;
   posted_on_platform: string | null;
@@ -49,6 +50,10 @@ export type MergedPost = {
   // for direct-upload posts and for cloud-only posts created before
   // the source_folder column existed (until backfilled).
   source_folder?: string | null;
+  // 16-char hex pHash. Used client-side to cluster visually similar
+  // posts into "shoot" groups even when source_folder is missing or
+  // when the user dumped multiple shoots into one Dropbox folder.
+  phash?: string | null;
   status: PostStatus;
   posted_at?: string | null;
   posted_on_platform?: string | null;
@@ -185,6 +190,7 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         source: "both",
         remote_image_url: p.image_url ?? undefined,
         source_folder: p.source_folder,
+        phash: p.phash,
         status: p.status,
         posted_at: p.posted_at,
         posted_on_platform: p.posted_on_platform,
@@ -203,6 +209,7 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         remote_image_url: p.image_url ?? undefined,
         source: "remote",
         source_folder: p.source_folder,
+        phash: p.phash,
         status: p.status,
         posted_at: p.posted_at,
         posted_on_platform: p.posted_on_platform,

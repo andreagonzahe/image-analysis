@@ -5,6 +5,11 @@ import Link from "next/link";
 import { SignInButton } from "@clerk/nextjs";
 import { listMergedPosts, deletePost, blobToObjectUrl, syncAllLocalToCloud, updatePostStatus, deleteEntireVault, type MergedPost, type PostStatus } from "@/lib/vault";
 import { PLATFORMS } from "@/lib/platforms";
+import {
+  hammingDistance,
+  phashFromString,
+  HAMMING_SHOOT_THRESHOLD,
+} from "@/lib/phash-utils";
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 
@@ -100,7 +105,14 @@ type SortKey =
   | "unposted_first";
 type SourceFilter = "all" | "local" | "remote" | "both";
 type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
-type BodyFilter = "all" | "top" | "butt" | "lingerie" | "both" | "genitals" | "neither";
+type BodyFilter =
+  | "all"
+  | "tease"
+  | "boobs"
+  | "booty"
+  | "pussy"
+  | "full_nude"
+  | "modest";
 type ViewMode = "grid" | "shoots" | "categories";
 
 /**
@@ -120,38 +132,224 @@ function leafFolderName(fullPath: string | null | undefined): string {
   return fullPath.slice(idx + 1) || "Root";
 }
 
+const SHOOT_TIME_WINDOW_MS = 36 * 60 * 60 * 1000; // 36h — same shoot day
+
+type ShootGroup = {
+  id: string;
+  label: string;
+  subtitle: string;
+  items: MergedPost[];
+  cover: MergedPost;
+  source_folder: string | null;
+};
+
+/**
+ * Group posts into "shoots" — clusters of photos that were taken in
+ * the same session (same outfit, same background, different poses).
+ *
+ * Three signals, layered most-trusted to weakest:
+ *   1. Same Dropbox source_folder + within 36h → same shoot. The user's
+ *      own folder organization is a strong signal of intentional
+ *      grouping; we honor it but cap at 36h so a re-used folder that
+ *      holds multiple sessions still splits sensibly.
+ *   2. Visual similarity (Hamming ≤ 28) + within 36h → same shoot.
+ *      Catches the "user dumped 3 shoots into one folder" case AND
+ *      the "shoots split across multiple folders" case.
+ *   3. Otherwise: each post is its own cluster (legacy posts without
+ *      phash that don't share a folder either).
+ *
+ * Union-find over a created_at-sorted list so each post only compares
+ * against neighbors within the time window — keeps the algorithm
+ * tractable for vaults with thousands of posts.
+ */
+function clusterShoots(posts: MergedPost[]): ShootGroup[] {
+  if (posts.length === 0) return [];
+
+  // Sort newest-first so the cover thumbnail of each cluster is its
+  // freshest member, and so the time-window check is monotonic.
+  const sorted = [...posts].sort((a, b) => b.created_at - a.created_at);
+
+  // Union-find over post ids.
+  const parent: Record<string, string> = {};
+  for (const p of sorted) parent[p.id] = p.id;
+  const find = (id: string): string => {
+    let cur = id;
+    while (parent[cur] !== cur) {
+      parent[cur] = parent[parent[cur]];
+      cur = parent[cur];
+    }
+    return cur;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  };
+
+  // Decode each post's pHash once.
+  const decoded = sorted.map((p) => {
+    let hash: bigint | null = null;
+    if (typeof p.phash === "string" && p.phash.length === 16) {
+      try {
+        hash = phashFromString(p.phash);
+      } catch {
+        hash = null;
+      }
+    }
+    return { post: p, hash };
+  });
+
+  for (let i = 0; i < decoded.length; i++) {
+    const a = decoded[i];
+    for (let j = i + 1; j < decoded.length; j++) {
+      const b = decoded[j];
+      // Sorted desc — once we leave the window, all later posts are also out.
+      if (a.post.created_at - b.post.created_at > SHOOT_TIME_WINDOW_MS) break;
+
+      // Signal 1: shared source folder is enough.
+      const sameFolder =
+        a.post.source_folder &&
+        a.post.source_folder === b.post.source_folder;
+      if (sameFolder) {
+        union(a.post.id, b.post.id);
+        continue;
+      }
+
+      // Signal 2: visual similarity.
+      if (a.hash && b.hash) {
+        const dist = hammingDistance(a.hash, b.hash);
+        if (dist <= HAMMING_SHOOT_THRESHOLD) {
+          union(a.post.id, b.post.id);
+        }
+      }
+    }
+  }
+
+  // Collect into clusters.
+  const groups = new Map<string, MergedPost[]>();
+  for (const p of sorted) {
+    const root = find(p.id);
+    const list = groups.get(root) ?? [];
+    list.push(p);
+    groups.set(root, list);
+  }
+
+  // Build labels. Prefer the source_folder leaf when the cluster
+  // shares one; fall back to a human-readable date span.
+  const result: ShootGroup[] = [];
+  for (const [root, items] of groups.entries()) {
+    items.sort((a, b) => b.created_at - a.created_at);
+    const folders = new Set(items.map((p) => p.source_folder ?? "").filter(Boolean));
+    const shared = folders.size === 1 ? Array.from(folders)[0] : null;
+
+    const newest = items[0];
+    const oldest = items[items.length - 1];
+    const dateLabel = formatShootDateLabel(newest.created_at, oldest.created_at);
+
+    let label: string;
+    let subtitle: string;
+    if (shared) {
+      label = leafFolderName(shared);
+      subtitle = `${dateLabel} · ${items.length} photo${items.length === 1 ? "" : "s"}`;
+    } else if (folders.size === 0) {
+      // No Dropbox folder anywhere in this cluster (direct uploads).
+      label = dateLabel;
+      subtitle = `${items.length} direct upload${items.length === 1 ? "" : "s"}`;
+    } else {
+      // Cluster spans multiple Dropbox folders — visual similarity grouped
+      // them, so name it by date. Reasonable when the user has chaotic org.
+      label = dateLabel;
+      subtitle = `${items.length} photos · spans ${folders.size} folder${folders.size === 1 ? "" : "s"}`;
+    }
+
+    result.push({
+      id: root,
+      label,
+      subtitle,
+      items,
+      cover: items[0],
+      source_folder: shared,
+    });
+  }
+
+  // Biggest shoots first; tie-break by most-recent activity.
+  result.sort((a, b) => {
+    if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+    return b.cover.created_at - a.cover.created_at;
+  });
+  return result;
+}
+
+function formatShootDateLabel(newestMs: number, oldestMs: number): string {
+  const d = new Date(newestMs);
+  const same = newestMs === oldestMs || newestMs - oldestMs < 24 * 60 * 60 * 1000;
+  if (same) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+  const o = new Date(oldestMs);
+  // Same month/year → "May 12-14, 2026"; cross-month → "May 28 – Jun 1, 2026"
+  const sameMonth = d.getMonth() === o.getMonth() && d.getFullYear() === o.getFullYear();
+  if (sameMonth) {
+    return `${d.toLocaleDateString(undefined, { month: "short" })} ${o.getDate()}–${d.getDate()}, ${d.getFullYear()}`;
+  }
+  return `${o.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+// Mutually-exclusive body categories. Every post lands in exactly one,
+// picked by priority (the most explicit category wins). Drives both the
+// filter chips and the "Categories" folder view.
 const BODY_CATEGORY_ORDER: Array<{
-  key: BodyFilter;
+  key: Exclude<BodyFilter, "all">;
   label: string;
   description: string;
 }> = [
-  { key: "lingerie", label: "Lingerie / tease", description: "Posed in lingerie, swimwear or sensual framing — no explicit nudity." },
-  { key: "top", label: "Top showing", description: "Breasts or cleavage visible (or topless)." },
-  { key: "butt", label: "Butt showing", description: "Buttocks visible — any garment level including thong." },
-  { key: "both", label: "Top + Butt", description: "Both top and butt visible in the same shot." },
-  { key: "genitals", label: "Genitals visible", description: "Fully explicit content — tier 4-5, PPV only." },
-  { key: "neither", label: "Modest", description: "No body parts visible — fully clothed or athletic shots." },
+  { key: "tease",     label: "Tease",     description: "Lingerie, swimwear or sensual framing — no explicit nudity." },
+  { key: "boobs",     label: "Boobs",     description: "Breasts or cleavage visible." },
+  { key: "booty",     label: "Booty",     description: "Butt visible — any garment level including thong." },
+  { key: "pussy",     label: "Pussy",     description: "Genitals visible but not fully nude — tier 4." },
+  { key: "full_nude", label: "Full nude", description: "Fully naked — tier 4-5, PPV only." },
+  { key: "modest",    label: "Modest",    description: "Fully clothed or athletic — no body parts visible." },
 ];
 
 /**
- * Derive coarse "what's showing" categories from the captioner's tags.
+ * Derive "what's showing" categories from the captioner's tags.
  *
- * Categories:
- *   - top      = breasts or cleavage visible, or topless/nude attire
- *   - butt     = buttocks visible (any garment level — including thong)
- *   - genitals = genitals tagged or fully_nude attire (sub-set of butt)
- *   - lingerie = suggestive attire (lingerie/underwear/swimwear) OR a
- *                seductive pose, WITHOUT explicit nudity tags. Catches
- *                the "tease" tier where the captioner saw the outfit
- *                but no specific body parts.
- *   - neither  = none of the above (modest)
+ * Returns both:
+ *   - flags: which categories the post belongs to (a post can be both
+ *            boobs + booty if both are visible)
+ *   - primary: the SINGLE most-explicit category, used for the
+ *              "Categories" folder view where each post should land in
+ *              exactly one bucket
+ *
+ * Priority for primary (most-explicit wins, picking up earlier stops):
+ *   full_nude > pussy > booty > boobs > tease > modest
+ *
+ * Notes:
+ *   - "full_nude" = attire fully_nude (whole body uncovered)
+ *   - "pussy" = genitals visible but NOT fully nude (e.g. spread legs
+ *               while wearing thong-aside; lower-body explicit only)
+ *   - "booty" = butt visible; includes thong-back shots and the
+ *               heuristic for swimwear/lingerie + seductive pose
+ *   - "boobs" = breasts or cleavage visible (or topless / partial nude)
+ *   - "tease" = suggestive attire/sensuality but no explicit body parts
+ *   - "modest" = none of the above
  */
+type BodyCategoryKey = Exclude<BodyFilter, "all">;
 function deriveBodyCategories(post: MergedPost): {
-  top: boolean;
-  butt: boolean;
-  genitals: boolean;
-  lingerie: boolean;
+  flags: {
+    boobs: boolean;
+    booty: boolean;
+    pussy: boolean;
+    fullNude: boolean;
+    tease: boolean;
+    modest: boolean;
+  };
+  primary: BodyCategoryKey;
 } {
+  const empty = {
+    flags: { boobs: false, booty: false, pussy: false, fullNude: false, tease: false, modest: true },
+    primary: "modest" as BodyCategoryKey,
+  };
   const tags = (post.analysis as {
     tags?: {
       attire?: string;
@@ -160,26 +358,31 @@ function deriveBodyCategories(post: MergedPost): {
       pose_intent?: string;
     };
   })?.tags;
-  if (!tags) return { top: false, butt: false, genitals: false, lingerie: false };
+  if (!tags) return empty;
 
   const parts = new Set(tags.body_parts_visible ?? []);
   const attire = tags.attire ?? "unknown";
   const sensuality = tags.sensuality ?? "unknown";
   const poseIntent = tags.pose_intent ?? "unknown";
 
-  const top =
+  const fullNude = attire === "fully_nude";
+
+  // Pussy: genitals tagged, but reserved for the not-fully-nude case
+  // (otherwise it'd double-count with full_nude in the primary bucket).
+  const pussy = parts.has("genitals") && !fullNude;
+
+  const boobs =
     parts.has("breasts") ||
     parts.has("cleavage") ||
     attire === "topless" ||
     attire === "partial_nude" ||
-    attire === "fully_nude";
+    fullNude;
 
-  // Butt — direct tag, OR fully nude, OR revealing-attire posed shots
-  // where the back is plausibly visible (thong/lingerie/swimwear with
-  // a seductive pose typically shows butt even if captioner missed it).
-  const butt =
+  // Booty — direct tag, fully nude, or revealing-attire posed shots
+  // where the back is plausibly visible.
+  const booty =
     parts.has("buttocks") ||
-    attire === "fully_nude" ||
+    fullNude ||
     ((attire === "lingerie" ||
       attire === "underwear" ||
       attire === "swimwear" ||
@@ -187,15 +390,9 @@ function deriveBodyCategories(post: MergedPost): {
       (poseIntent === "modeling_seductive" ||
         sensuality === "erotic_intentional"));
 
-  // Genitals: explicit tag or fully nude — tier-5 content.
-  const genitals = parts.has("genitals") || attire === "fully_nude";
-
-  // Lingerie / tease — suggestive but NOT showing breasts/butt/genitals
-  // directly. This is the "in between" tier: posed in lingerie or
-  // swimwear, sensual framing, but the explicit body parts aren't
-  // tagged. Hugely under-served by the previous top/bottom-only chips.
-  const lingerie =
-    !top && !butt && !genitals &&
+  // Tease — suggestive without explicit body parts.
+  const tease =
+    !boobs && !booty && !pussy && !fullNude &&
     (attire === "lingerie" ||
       attire === "underwear" ||
       attire === "swimwear" ||
@@ -203,7 +400,20 @@ function deriveBodyCategories(post: MergedPost): {
       sensuality === "sensual_aesthetic" ||
       poseIntent === "modeling_seductive");
 
-  return { top, butt, genitals, lingerie };
+  const modest = !boobs && !booty && !pussy && !fullNude && !tease;
+
+  // Pick primary in priority order (most-explicit wins).
+  let primary: BodyCategoryKey = "modest";
+  if (fullNude) primary = "full_nude";
+  else if (pussy) primary = "pussy";
+  else if (booty) primary = "booty";
+  else if (boobs) primary = "boobs";
+  else if (tease) primary = "tease";
+
+  return {
+    flags: { boobs, booty, pussy, fullNude, tease, modest },
+    primary,
+  };
 }
 
 type AuthState = { auth_enabled: boolean; sync_enabled: boolean; signed_in: boolean };
@@ -376,6 +586,27 @@ export default function VaultPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cluster posts into "shoots" using a blend of three signals so the
+  // grouping survives whatever organization (or chaos) is in the user's
+  // Dropbox. See clusterShoots() at the top of this file for the full
+  // algorithm. Each group becomes a folder card in the "Shoots" view.
+  // Defined BEFORE `filtered` so the folder-filter check can resolve
+  // a shoot id → its post ids via shootGroupsById.
+  const shootGroups = useMemo(() => {
+    if (!posts) return [];
+    return clusterShoots(posts);
+  }, [posts]);
+
+  // Reverse lookup so the filter can resolve a shoot id → its post ids
+  // in O(1). Rebuilt whenever shootGroups changes.
+  const shootGroupsById = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const g of shootGroups) {
+      m.set(g.id, new Set(g.items.map((p) => p.id)));
+    }
+    return m;
+  }, [shootGroups]);
+
   const filtered = useMemo(() => {
     if (!posts) return [];
     let out = posts.slice();
@@ -391,25 +622,18 @@ export default function VaultPage() {
     }
     if (bodyFilter !== "all") {
       out = out.filter((p) => {
-        const { top, butt, genitals, lingerie } = deriveBodyCategories(p);
-        if (bodyFilter === "top") return top && !butt;
-        if (bodyFilter === "butt") return butt && !top;
-        if (bodyFilter === "both") return top && butt;
-        if (bodyFilter === "genitals") return genitals;
-        if (bodyFilter === "lingerie") return lingerie;
-        if (bodyFilter === "neither") return !top && !butt && !lingerie;
-        return true;
+        const { primary } = deriveBodyCategories(p);
+        return primary === bodyFilter;
       });
     }
     if (folderFilter !== "all") {
-      // "__unsorted" matches posts with no source_folder (direct uploads
-      // or pre-backfill cloud posts). Any other value is a literal folder
-      // path match.
-      out = out.filter((p) => {
-        const f = p.source_folder ?? null;
-        if (folderFilter === "__unsorted") return !f;
-        return f === folderFilter;
-      });
+      // folderFilter holds a shoot-cluster id (the root of the union-find
+      // grouping). Resolve it to its member post ids and filter by
+      // membership — works for both single-folder clusters and the
+      // multi-folder visual-similarity clusters that don't map to one
+      // physical source_folder.
+      const ids = shootGroupsById.get(folderFilter);
+      if (ids) out = out.filter((p) => ids.has(p.id));
     }
 
     const postedTime = (p: MergedPost) =>
@@ -472,66 +696,27 @@ export default function VaultPage() {
         break;
     }
     return out;
-  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, bodyFilter, folderFilter, sort]);
+  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, bodyFilter, folderFilter, shootGroupsById, sort]);
 
-  // Aggregate posts by Dropbox parent folder for the "By shoot" view.
-  // Each card shows a thumbnail (most recent post in the folder) +
-  // folder leaf name + count + label of the dominant body category.
-  // Posts with no source_folder land under a synthetic "Direct uploads
-  // / unsorted" bucket so they're still navigable.
-  const shootGroups = useMemo(() => {
-    if (!posts) return [];
-    const map = new Map<string, MergedPost[]>();
-    for (const p of posts) {
-      const key = p.source_folder ?? "__unsorted";
-      const list = map.get(key) ?? [];
-      list.push(p);
-      map.set(key, list);
-    }
-    // Sort each folder's posts by most-recent so the cover thumbnail is fresh.
-    const groups = Array.from(map.entries()).map(([folder, items]) => {
-      items.sort((a, b) => b.created_at - a.created_at);
-      return {
-        folder,
-        leaf: folder === "__unsorted" ? "Direct uploads / unsorted" : leafFolderName(folder),
-        fullPath: folder === "__unsorted" ? null : folder,
-        items,
-        cover: items[0],
-        latest: items[0]?.created_at ?? 0,
-      };
-    });
-    // Show biggest folders first; tie-break by most-recent activity.
-    groups.sort((a, b) => {
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
-      return b.latest - a.latest;
-    });
-    return groups;
-  }, [posts]);
-
-  // Aggregate posts by body category for the "By body part" view.
-  // Categories aren't mutually exclusive (a topless+butt shot lands in
-  // both "top" and "butt"), so a post may appear in multiple folders.
+  // Aggregate posts by body category for the "Categories" folder view.
+  // Now uses the mutually-exclusive `primary` so every post lands in
+  // exactly one folder — much less confusing than the old multi-flag
+  // bucketing where one post could appear in 3 folders.
   const categoryGroups = useMemo(() => {
     if (!posts) return [];
-    const buckets: Record<BodyFilter, MergedPost[]> = {
-      all: [],
-      top: [],
-      butt: [],
-      both: [],
-      lingerie: [],
-      genitals: [],
-      neither: [],
+    const buckets: Record<Exclude<BodyFilter, "all">, MergedPost[]> = {
+      tease: [],
+      boobs: [],
+      booty: [],
+      pussy: [],
+      full_nude: [],
+      modest: [],
     };
     for (const p of posts) {
-      const { top, butt, genitals, lingerie } = deriveBodyCategories(p);
-      if (genitals) buckets.genitals.push(p);
-      if (top && butt) buckets.both.push(p);
-      else if (top) buckets.top.push(p);
-      else if (butt) buckets.butt.push(p);
-      if (lingerie) buckets.lingerie.push(p);
-      if (!top && !butt && !lingerie) buckets.neither.push(p);
+      const { primary } = deriveBodyCategories(p);
+      buckets[primary].push(p);
     }
-    for (const k of Object.keys(buckets) as BodyFilter[]) {
+    for (const k of Object.keys(buckets) as Array<Exclude<BodyFilter, "all">>) {
       buckets[k].sort((a, b) => b.created_at - a.created_at);
     }
     return BODY_CATEGORY_ORDER.map((meta) => ({
@@ -695,6 +880,7 @@ export default function VaultPage() {
               className={`vault-view-tab${view === "grid" ? " is-active" : ""}`}
               onClick={() => setView("grid")}
             >
+              <span className="vault-view-tab-icon" aria-hidden>🖼️</span>
               All photos
               <span className="vault-view-tab-count">{posts.length.toLocaleString()}</span>
             </button>
@@ -704,7 +890,8 @@ export default function VaultPage() {
               className={`vault-view-tab${view === "shoots" ? " is-active" : ""}`}
               onClick={() => setView("shoots")}
             >
-              By shoot
+              <span className="vault-view-tab-icon" aria-hidden>📁</span>
+              Shoots
               <span className="vault-view-tab-count">{shootGroups.length}</span>
             </button>
             <button
@@ -713,7 +900,8 @@ export default function VaultPage() {
               className={`vault-view-tab${view === "categories" ? " is-active" : ""}`}
               onClick={() => setView("categories")}
             >
-              By body part
+              <span className="vault-view-tab-icon" aria-hidden>📁</span>
+              Body parts
               <span className="vault-view-tab-count">{categoryGroups.length}</span>
             </button>
           </div>
@@ -721,19 +909,19 @@ export default function VaultPage() {
           {folderFilter !== "all" && view === "grid" && (
             <div className="vault-folder-pill">
               <span>
-                Filtered to shoot:{" "}
+                <span aria-hidden>📁</span> Viewing folder:{" "}
                 <strong>
-                  {folderFilter === "__unsorted"
-                    ? "Direct uploads / unsorted"
-                    : leafFolderName(folderFilter)}
+                  {shootGroupsById.has(folderFilter)
+                    ? shootGroups.find((g) => g.id === folderFilter)?.label ?? "Folder"
+                    : "Folder"}
                 </strong>
               </span>
               <button
                 className="btn-ghost"
                 onClick={() => setFolderFilter("all")}
-                aria-label="Clear shoot filter"
+                aria-label="Clear folder filter"
               >
-                ✕ Clear
+                ✕ Back to all folders
               </button>
             </div>
           )}
@@ -768,12 +956,12 @@ export default function VaultPage() {
             </div>
             <div className="chip-row">
               <Chip active={bodyFilter === "all"} onClick={() => setBodyFilter("all")}>Anything showing</Chip>
-              <Chip active={bodyFilter === "lingerie"} onClick={() => setBodyFilter("lingerie")}>Lingerie / tease</Chip>
-              <Chip active={bodyFilter === "top"} onClick={() => setBodyFilter("top")}>Top showing</Chip>
-              <Chip active={bodyFilter === "butt"} onClick={() => setBodyFilter("butt")}>Butt showing</Chip>
-              <Chip active={bodyFilter === "both"} onClick={() => setBodyFilter("both")}>Top + Butt</Chip>
-              <Chip active={bodyFilter === "genitals"} onClick={() => setBodyFilter("genitals")}>Genitals visible</Chip>
-              <Chip active={bodyFilter === "neither"} onClick={() => setBodyFilter("neither")}>Neither (modest)</Chip>
+              <Chip active={bodyFilter === "tease"} onClick={() => setBodyFilter("tease")}>Tease</Chip>
+              <Chip active={bodyFilter === "boobs"} onClick={() => setBodyFilter("boobs")}>Boobs</Chip>
+              <Chip active={bodyFilter === "booty"} onClick={() => setBodyFilter("booty")}>Booty</Chip>
+              <Chip active={bodyFilter === "pussy"} onClick={() => setBodyFilter("pussy")}>Pussy</Chip>
+              <Chip active={bodyFilter === "full_nude"} onClick={() => setBodyFilter("full_nude")}>Full nude</Chip>
+              <Chip active={bodyFilter === "modest"} onClick={() => setBodyFilter("modest")}>Modest</Chip>
             </div>
             <div className="sort-row">
               <label htmlFor="sort" className="sort-label">Sort</label>
@@ -804,22 +992,30 @@ export default function VaultPage() {
                 No shoots yet. Import a Dropbox folder to start organizing.
               </p>
             ) : (
-              <div className="vault-folder-grid">
-                {shootGroups.map((g) => (
-                  <FolderCard
-                    key={g.folder}
-                    title={g.leaf}
-                    subtitle={g.fullPath ?? "—"}
-                    count={g.items.length}
-                    cover={g.cover}
-                    thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
-                    onOpen={() => {
-                      setFolderFilter(g.folder);
-                      setView("grid");
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <p className="vault-folder-help">
+                  Folders below group photos taken in the same session —
+                  same outfit, same background, different poses. Click any
+                  folder to open it. Photos still appear in <strong>All
+                  photos</strong> too.
+                </p>
+                <div className="vault-folder-grid">
+                  {shootGroups.map((g) => (
+                    <FolderCard
+                      key={g.id}
+                      title={g.label}
+                      subtitle={g.subtitle}
+                      count={g.items.length}
+                      cover={g.cover}
+                      thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
+                      onOpen={() => {
+                        setFolderFilter(g.id);
+                        setView("grid");
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
             )
           ) : view === "categories" ? (
             categoryGroups.length === 0 ? (
@@ -827,22 +1023,28 @@ export default function VaultPage() {
                 No tagged posts yet.
               </p>
             ) : (
-              <div className="vault-folder-grid">
-                {categoryGroups.map((g) => (
-                  <FolderCard
-                    key={g.key}
-                    title={g.label}
-                    subtitle={g.description}
-                    count={g.items.length}
-                    cover={g.cover}
-                    thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
-                    onOpen={() => {
-                      setBodyFilter(g.key);
-                      setView("grid");
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <p className="vault-folder-help">
+                  Each post lands in exactly one folder — the most-explicit
+                  body part visible wins. Click a folder to filter the grid.
+                </p>
+                <div className="vault-folder-grid">
+                  {categoryGroups.map((g) => (
+                    <FolderCard
+                      key={g.key}
+                      title={g.label}
+                      subtitle={g.description}
+                      count={g.items.length}
+                      cover={g.cover}
+                      thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
+                      onOpen={() => {
+                        setBodyFilter(g.key);
+                        setView("grid");
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
             )
           ) : filtered.length === 0 ? (
             <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
@@ -1062,17 +1264,25 @@ function FolderCard({
     cover && (cover as MergedPost & { image_url?: string | null }).image_url;
   const imgSrc = thumbUrl ?? cover?.remote_image_url ?? remoteUrl ?? null;
   return (
-    <button className="vault-folder-card" onClick={onOpen} aria-label={`Open ${title}`}>
+    <button className="vault-folder-card" onClick={onOpen} aria-label={`Open folder: ${title}`}>
+      {/* Folder tab — the angled flap at the top sells the "this is a
+          folder" metaphor at a glance. Purely decorative. */}
+      <div className="vault-folder-tab" aria-hidden />
       <div className="vault-folder-thumb">
         {imgSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={imgSrc} alt="" loading="lazy" />
         ) : (
           <div className="vault-folder-thumb-empty" aria-hidden>
-            📁
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+            </svg>
           </div>
         )}
-        <span className="vault-folder-count">{count}</span>
+        <span className="vault-folder-count" aria-label={`${count} photos`}>
+          {count.toLocaleString()}
+        </span>
+        <span className="vault-folder-icon" aria-hidden>📁</span>
       </div>
       <div className="vault-folder-body">
         <strong className="vault-folder-title">{title}</strong>
@@ -1117,32 +1327,20 @@ function VaultCard({
   };
 
   const isRemoteOnly = post.source === "remote";
-  const body = deriveBodyCategories(post);
-  // Priority order for the corner badge: most-explicit first so it
-  // dominates when there's ambiguity. Explicit > Top+Butt > single
-  // body part > Lingerie tease.
-  const bodyLabel = body.genitals
-    ? "Explicit"
-    : body.top && body.butt
-      ? "Top + Butt"
-      : body.top
-        ? "Top"
-        : body.butt
-          ? "Butt"
-          : body.lingerie
-            ? "Lingerie"
-            : null;
-  const bodyClass = body.genitals
-    ? "body-badge body-badge-explicit"
-    : body.top && body.butt
-      ? "body-badge body-badge-both"
-      : body.top
-        ? "body-badge body-badge-top"
-        : body.butt
-          ? "body-badge body-badge-bottom"
-          : body.lingerie
-            ? "body-badge body-badge-lingerie"
-            : "";
+  const { primary: bodyPrimary } = deriveBodyCategories(post);
+  // Corner badge — single category per post, taken from the same
+  // mutually-exclusive primary that drives the Categories folder view.
+  const BADGE_FOR_PRIMARY: Record<Exclude<BodyFilter, "all">, { label: string; className: string } | null> = {
+    full_nude: { label: "Full nude", className: "body-badge body-badge-explicit" },
+    pussy:     { label: "Pussy",     className: "body-badge body-badge-explicit" },
+    booty:     { label: "Booty",     className: "body-badge body-badge-bottom" },
+    boobs:     { label: "Boobs",     className: "body-badge body-badge-top" },
+    tease:     { label: "Tease",     className: "body-badge body-badge-lingerie" },
+    modest:    null,
+  };
+  const bodyBadge = BADGE_FOR_PRIMARY[bodyPrimary];
+  const bodyLabel = bodyBadge?.label ?? null;
+  const bodyClass = bodyBadge?.className ?? "";
 
   return (
     <article className="vault-card">
