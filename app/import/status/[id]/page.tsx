@@ -3,6 +3,11 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import {
+  estimateRemainingSeconds,
+  formatDuration,
+  formatDurationRange,
+} from "@/lib/time-estimate";
 
 type BatchStatus = {
   batch: {
@@ -45,29 +50,10 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
   // Module-scope helpers were hoisted but somehow broke after a Turbopack
   // hot reload — keeping them inside the component closure avoids any
   // hoisting weirdness across HMR cycles.
-  const formatEta = (seconds: number): string => {
-    if (!isFinite(seconds) || seconds <= 0) return "almost done";
-    if (seconds < 60) return `~${Math.round(seconds)} sec`;
-    const min = seconds / 60;
-    if (min < 60) {
-      if (min < 2) return "~1 min";
-      return `~${Math.round(min)} min`;
-    }
-    const hr = min / 60;
-    return `~${Math.round(hr * 10) / 10} hr`;
-  };
-  const staticRange = (remaining: number): string => {
-    // Matches the calibration on /import (screen + prefilter + analyze
-    // funnel, ~1.1s/image fast / ~2.5s/image slow).
-    const fastMin = (remaining * 1.1) / 60;
-    const slowMin = (remaining * 2.5) / 60;
-    const fmt = (m: number) => {
-      if (m < 1) return "< 1 min";
-      if (m < 60) return `${Math.round(m)} min`;
-      return `${Math.round((m / 60) * 10) / 10} hr`;
-    };
-    return `${fmt(fastMin)}–${fmt(slowMin)}`;
-  };
+  // Both formatters are imported from lib/time-estimate so /import and
+  // /import/status stay calibrated to the same numbers. Kept aliased
+  // here so the JSX below reads naturally.
+  const formatEta = formatDuration;
   const { id } = use(params);
   const [data, setData] = useState<BatchStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -219,27 +205,8 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
   const remaining = Math.max(0, total - done - failed);
   const pct = total === 0 ? 0 : Math.round(((done + failed) / total) * 100);
 
-  // ----- Live ETA -----
-  // Throughput from when the batch started up to now. We only show the
-  // dynamic estimate once at least a few jobs have completed — otherwise
-  // a single fluke can produce a wildly wrong number. Before that, we
-  // show the same range-based static estimate the /import page uses.
-  const completedJobs = done + failed;
-  const startedAt = new Date(data.batch.created_at).getTime();
-  const elapsedSec = Math.max(1, (Date.now() - startedAt) / 1000);
-  const throughput = completedJobs > 0 ? completedJobs / elapsedSec : 0; // jobs/sec
-  let etaLabel = "";
-  if (isDone) {
-    etaLabel = "";
-  } else if (completedJobs >= 3 && throughput > 0) {
-    const etaSec = remaining / throughput;
-    etaLabel = `${formatEta(etaSec)} remaining · ${(throughput * 60).toFixed(1)} jobs/min`;
-  } else {
-    // No data yet — fall back to a static range so the user has something.
-    etaLabel = `Estimated ${staticRange(remaining)} total`;
-  }
-
-  // Split out the three passes
+  // Split out the three passes — needed both for the live ETA and for
+  // the per-pass progress bars further down.
   const scr = data.by_kind.screen ?? {};
   const pre = data.by_kind.prefilter ?? {};
   const ana = data.by_kind.analyze_image ?? {};
@@ -251,6 +218,51 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
   const anaTotal = (ana.pending ?? 0) + (ana.processing ?? 0) + (ana.done ?? 0) + (ana.failed ?? 0);
   const kept = ana.done ?? 0;
   const skipped = (scr.skipped ?? 0) + (pre.skipped ?? 0);
+
+  // ----- Live ETA -----
+  //
+  // Two estimators, blended once we have signal:
+  //
+  //  A) Kind-aware static — uses the shared lib/time-estimate model
+  //     to weight remaining work by its expected per-job cost
+  //     (screen 1.5s, prefilter 4s, analyze 11s). Stable from the
+  //     moment the batch starts. Always available.
+  //
+  //  B) Measured throughput — completed jobs / elapsed wall time.
+  //     Catches Replicate/Together being slow today vs. typical.
+  //     Only used once 10+ jobs have completed (a single fluke can
+  //     swing it 2-3x on a small sample; the screen pass also
+  //     drains 5x faster than analyze, which would skew an
+  //     all-jobs-equal throughput badly toward optimism early on).
+  //
+  // Blend rule: use the WORSE of the two estimates (max) once both
+  // are available. Erring slow keeps the user from being surprised
+  // when a long-tail analyze stage outlasts what the throughput
+  // average suggested.
+  const completedJobs = done + failed;
+  const startedAt = new Date(data.batch.created_at).getTime();
+  const elapsedSec = Math.max(1, (Date.now() - startedAt) / 1000);
+  const throughput = completedJobs > 0 ? completedJobs / elapsedSec : 0; // jobs/sec
+  const remainingByKind = {
+    screen: (scr.pending ?? 0) + (scr.processing ?? 0),
+    prefilter: (pre.pending ?? 0) + (pre.processing ?? 0),
+    analyze: (ana.pending ?? 0) + (ana.processing ?? 0),
+  };
+  const { fastSec: kindFast, slowSec: kindSlow } =
+    estimateRemainingSeconds(remainingByKind);
+
+  let etaLabel = "";
+  if (isDone) {
+    etaLabel = "";
+  } else if (completedJobs >= 10 && throughput > 0) {
+    const measuredSec = remaining / throughput;
+    // Use the more pessimistic of measured-throughput vs. kind-aware.
+    const etaSec = Math.max(measuredSec, kindFast);
+    etaLabel = `${formatEta(etaSec)} remaining · ${(throughput * 60).toFixed(1)} jobs/min`;
+  } else {
+    // No reliable throughput yet — show kind-aware range.
+    etaLabel = `Estimated ${formatDurationRange(kindFast, kindSlow)} remaining`;
+  }
 
   return (
     <main>

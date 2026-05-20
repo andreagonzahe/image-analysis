@@ -4,6 +4,14 @@ import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SignInButton } from "@clerk/nextjs";
+import {
+  KEEPER_RATIO,
+  SCREEN_SURVIVAL,
+  PREFILTER_COST_PER_IMAGE,
+  ANALYZE_COST_PER_IMAGE,
+  estimateImportSeconds,
+  formatDurationRange,
+} from "@/lib/time-estimate";
 
 type DropboxStatus = {
   configured: boolean;
@@ -28,10 +36,10 @@ type Forecast = {
   max_scanned?: number;
 };
 
-// Cost model — keep these in lockstep with /lib/prefilter + /lib/captioner
-const PREFILTER_COST = 0.001;   // per image
-const ANALYZE_COST = 0.005;     // per image
-const KEEPER_RATIO = 0.28;      // historical estimate; we assume ~28% survives prefilter
+// Cost + survival model lives in lib/time-estimate.ts so /import and
+// /import/status share one source of truth. Aliased here for readability.
+const PREFILTER_COST = PREFILTER_COST_PER_IMAGE;
+const ANALYZE_COST = ANALYZE_COST_PER_IMAGE;
 
 export default function ImportPage() {
   return (
@@ -238,10 +246,15 @@ function ImportPageInner() {
   const parentPath =
     !path || path === "/" ? null : "/" + breadcrumbs.slice(0, -1).join("/");
 
+  // Costs follow the funnel survival rates:
+  //   1. screen (free, server-side) drops ~45% of input
+  //   2. prefilter pays $0.001 per screen survivor (~55% of input)
+  //   3. analyze pays $0.005 per prefilter survivor (~25% of input)
   const cost = forecast
     ? {
-        prefilter: forecast.count * PREFILTER_COST,
-        prefilter_total: forecast.count * PREFILTER_COST,
+        screen_survivors: Math.round(forecast.count * SCREEN_SURVIVAL),
+        prefilter_total:
+          Math.round(forecast.count * SCREEN_SURVIVAL) * PREFILTER_COST,
         est_keepers: Math.round(forecast.count * KEEPER_RATIO),
         analyze_total: Math.round(forecast.count * KEEPER_RATIO) * ANALYZE_COST,
       }
@@ -403,33 +416,43 @@ function ImportPageInner() {
 
           <div className="forecast-grid">
             <div className="forecast-row">
-              <span className="forecast-label">Step 1: Pre-filter</span>
+              <span className="forecast-label">Step 1: Screen (free)</span>
+              <span className="forecast-value">$0.00</span>
+              <span className="forecast-meta">
+                drops {Math.round((1 - SCREEN_SURVIVAL) * 100)}% — blurry, duplicate, text/UI
+              </span>
+            </div>
+            <div className="forecast-row">
+              <span className="forecast-label">Step 2: Pre-filter</span>
               <span className="forecast-value">~${cost!.prefilter_total.toFixed(2)}</span>
-              <span className="forecast-meta">{forecast.count.toLocaleString()} × ${PREFILTER_COST}</span>
+              <span className="forecast-meta">
+                {cost!.screen_survivors.toLocaleString()} × ${PREFILTER_COST} (screen survivors)
+              </span>
             </div>
             <div className="forecast-row">
               <span className="forecast-label">Estimated keepers</span>
               <span className="forecast-value">~{cost!.est_keepers.toLocaleString()}</span>
-              <span className="forecast-meta">{Math.round(KEEPER_RATIO * 100)}% historical ratio</span>
+              <span className="forecast-meta">{Math.round(KEEPER_RATIO * 100)}% of input typically reaches vault</span>
             </div>
             <div className="forecast-row">
-              <span className="forecast-label">Step 2: Deep-tag keepers</span>
+              <span className="forecast-label">Step 3: Deep-tag keepers</span>
               <span className="forecast-value">~${cost!.analyze_total.toFixed(2)}</span>
               <span className="forecast-meta">{cost!.est_keepers.toLocaleString()} × ${ANALYZE_COST}</span>
             </div>
             <div className="forecast-row forecast-row-total">
-              <span className="forecast-label">Total Replicate spend (estimate)</span>
+              <span className="forecast-label">Total Replicate + Together spend (estimate)</span>
               <span className="forecast-value">~${totalCost.toFixed(2)}</span>
-              <span className="forecast-meta">on your own Replicate account</span>
+              <span className="forecast-meta">on your own provider accounts</span>
             </div>
           </div>
 
           <p style={{ fontSize: 13, color: "var(--muted)", margin: "16px 0 0" }}>
             Time: roughly <strong>{humanizeDuration(forecast.count)}</strong>.
-            The faster end assumes you keep the import status tab open
-            (work runs continuously); the slower end assumes you close it and
-            let the scheduler chip away every minute. The live status page
-            shows a real countdown once jobs start completing.
+            The faster end assumes you keep this app open in any tab
+            (work runs continuously); the slower end assumes you close
+            the browser and let the scheduler chip away once a minute.
+            The live status page shows a real countdown once jobs start
+            completing.
           </p>
 
           <div className="cta-row" style={{ marginTop: 20 }}>
@@ -457,26 +480,8 @@ function prettyBytes(n: number): string {
 }
 
 function humanizeDuration(count: number): string {
-  // Calibrated to the 3-pass pipeline (screen → prefilter → analyze) with
-  // 8 jobs/tick + parallel NSFW+caption inside analyze. Empirical numbers
-  // from the worker:
-  //   Screen     : ~3s wall / 8 parallel = ~0.4s effective per image
-  //                ~50-70% survive (dedup + blur drop the rest)
-  //   Prefilter  : ~6s wall / 8 parallel = ~0.75s per survivor
-  //                ~28% of those survive (keep/skip from Qwen-VL)
-  //   Analyze    : ~12s wall / 8 parallel = ~1.5s per keeper
-  //
-  // Fast end assumes tab stays open + chain-fire keeps the worker busy:
-  //   per image ≈ 0.4 + 0.6×0.75 + 0.6×0.28×1.5 = ~1.1 sec
-  // Slow end assumes Vercel-style cron only firing every 60s, no
-  // chain-fire — about 3x slower per pass:
-  //   per image ≈ 0.4 + 0.6×2.2 + 0.6×0.28×4.5 = ~2.5 sec
-  const fastMin = (count * 1.1) / 60;
-  const slowMin = (count * 2.5) / 60;
-  const fmt = (m: number) => {
-    if (m < 1) return "< 1 min";
-    if (m < 60) return `${Math.round(m)} min`;
-    return `${Math.round((m / 60) * 10) / 10} hr`;
-  };
-  return `${fmt(fastMin)}–${fmt(slowMin)}`;
+  // Thin wrapper around the shared kind-aware estimator so /import and
+  // /import/status stay in sync.
+  const { fastSec, slowSec } = estimateImportSeconds(count);
+  return formatDurationRange(fastSec, slowSec);
 }
