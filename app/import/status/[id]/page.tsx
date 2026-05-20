@@ -363,11 +363,12 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
           <div className="status-recent">
             {data.recent_posts.map((p) => (
               <Link key={p.id} href={`/vault?focus=${p.id}`} className="status-recent-card">
-                <div className="status-recent-thumb">
-                  {p.image_url ? (
-                    <img src={p.image_url} alt="" loading="lazy" decoding="async" />
-                  ) : (
-                    <div className="status-recent-thumb-placeholder" />
+                <div className="status-recent-thumb status-recent-thumb-loading">
+                  {/* Shimmer behind the img — only 6 items in this strip, so
+                      we eager-load instead of lazy. img covers the shimmer
+                      once it paints. */}
+                  {p.image_url && (
+                    <img src={p.image_url} alt="" decoding="async" />
                   )}
                   <span className={`rating-pill ${p.content_rating}`}>{p.content_rating}</span>
                 </div>

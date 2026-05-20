@@ -4,6 +4,40 @@ import { getConnectionForUser, getThumbnailBytes } from "@/lib/dropbox";
 
 export const runtime = "nodejs";
 
+// In-memory LRU cache. Dropbox thumbnails are immutable per file_id +
+// size, so once we've fetched the bytes once we can serve subsequent
+// requests in ~5ms instead of ~500ms. Works locally (single Node
+// process) — on Vercel the cache lives per warm function instance, so
+// it still helps repeat views within a session.
+const THUMB_CACHE = new Map<
+  string,
+  { bytes: Buffer; contentType: string; expires: number }
+>();
+const THUMB_CACHE_MAX = 500;
+const THUMB_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — thumbnails are stable
+
+function cacheGet(key: string): { bytes: Buffer; contentType: string } | null {
+  const e = THUMB_CACHE.get(key);
+  if (!e) return null;
+  if (e.expires < Date.now()) {
+    THUMB_CACHE.delete(key);
+    return null;
+  }
+  // Touch (move to most-recently-used by re-inserting).
+  THUMB_CACHE.delete(key);
+  THUMB_CACHE.set(key, e);
+  return { bytes: e.bytes, contentType: e.contentType };
+}
+
+function cacheSet(key: string, bytes: Buffer, contentType: string) {
+  if (THUMB_CACHE.size >= THUMB_CACHE_MAX) {
+    // Evict oldest (first inserted).
+    const oldestKey = THUMB_CACHE.keys().next().value;
+    if (oldestKey) THUMB_CACHE.delete(oldestKey);
+  }
+  THUMB_CACHE.set(key, { bytes, contentType, expires: Date.now() + THUMB_CACHE_TTL_MS });
+}
+
 // Format: literal "id:" prefix + 16-64 chars of base64-url-ish payload.
 // Conservative cap on length so a malicious caller can't smuggle a giant
 // request body through the URL. Dropbox real ids are typically 22 chars.
@@ -54,6 +88,21 @@ export async function GET(
   const sizeParam = url.searchParams.get("size") ?? "w640h480";
   const size = VALID_SIZES.has(sizeParam) ? sizeParam : "w640h480";
 
+  // Try the server-side cache first — keyed by user + file + size so two
+  // users can't see each other's thumbnails (auth boundary intact).
+  const cacheKey = `${userId}:${fileId}:${size}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) {
+    return new NextResponse(new Uint8Array(cached.bytes), {
+      status: 200,
+      headers: {
+        "Content-Type": cached.contentType,
+        "Cache-Control": "private, max-age=3600",
+        "X-Cache": "HIT",
+      },
+    });
+  }
+
   const conn = await getConnectionForUser(userId);
   if (!conn) {
     return NextResponse.json({ error: "Dropbox not connected" }, { status: 400 });
@@ -67,6 +116,8 @@ export async function GET(
     );
   }
 
+  cacheSet(cacheKey, result.bytes, result.contentType);
+
   return new NextResponse(new Uint8Array(result.bytes), {
     status: 200,
     headers: {
@@ -74,6 +125,7 @@ export async function GET(
       // Cache aggressively in the browser. Thumbnails for a given file-id +
       // size are effectively immutable for as long as the file exists.
       "Cache-Control": "private, max-age=3600",
+      "X-Cache": "MISS",
     },
   });
 }
