@@ -100,7 +100,7 @@ type SortKey =
   | "unposted_first";
 type SourceFilter = "all" | "local" | "remote" | "both";
 type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
-type BodyFilter = "all" | "top" | "bottom" | "both" | "neither";
+type BodyFilter = "all" | "top" | "bottom" | "both" | "genitals" | "neither";
 
 /**
  * Derive coarse "what's showing" categories from the captioner's tags.
@@ -108,9 +108,13 @@ type BodyFilter = "all" | "top" | "bottom" | "both" | "neither";
  * the BodyFilter chips so a creator can quickly browse "all my topless
  * stuff" or "things I shot with bottom focus".
  */
-function deriveBodyCategories(post: MergedPost): { top: boolean; bottom: boolean } {
+function deriveBodyCategories(post: MergedPost): {
+  top: boolean;
+  bottom: boolean;
+  genitals: boolean;
+} {
   const tags = (post.analysis as { tags?: { attire?: string; body_parts_visible?: string[] } })?.tags;
-  if (!tags) return { top: false, bottom: false };
+  if (!tags) return { top: false, bottom: false, genitals: false };
   const parts = new Set(tags.body_parts_visible ?? []);
   const attire = tags.attire ?? "unknown";
   const revealing = ["swimwear", "lingerie", "underwear", "partial_nude", "fully_nude"];
@@ -130,7 +134,12 @@ function deriveBodyCategories(post: MergedPost): { top: boolean; bottom: boolean
     // in a regular dress shouldn't show up under the bottom filter.
     (parts.has("thighs") && revealing.includes(attire));
 
-  return { top, bottom };
+  // Explicit: genitals specifically tagged as visible. Sub-set of
+  // "bottom showing" — useful for creators sorting their library by
+  // tier-5 content vs softer "bottom" coverage like buttocks/thighs.
+  const genitals = parts.has("genitals") || attire === "fully_nude";
+
+  return { top, bottom, genitals };
 }
 
 type AuthState = { auth_enabled: boolean; sync_enabled: boolean; signed_in: boolean };
@@ -259,10 +268,11 @@ export default function VaultPage() {
     }
     if (bodyFilter !== "all") {
       out = out.filter((p) => {
-        const { top, bottom } = deriveBodyCategories(p);
+        const { top, bottom, genitals } = deriveBodyCategories(p);
         if (bodyFilter === "top") return top && !bottom;
         if (bodyFilter === "bottom") return !top && bottom;
         if (bodyFilter === "both") return top && bottom;
+        if (bodyFilter === "genitals") return genitals;
         if (bodyFilter === "neither") return !top && !bottom;
         return true;
       });
@@ -510,6 +520,7 @@ export default function VaultPage() {
               <Chip active={bodyFilter === "top"} onClick={() => setBodyFilter("top")}>Top showing</Chip>
               <Chip active={bodyFilter === "bottom"} onClick={() => setBodyFilter("bottom")}>Bottom showing</Chip>
               <Chip active={bodyFilter === "both"} onClick={() => setBodyFilter("both")}>Both showing</Chip>
+              <Chip active={bodyFilter === "genitals"} onClick={() => setBodyFilter("genitals")}>Genitals visible</Chip>
               <Chip active={bodyFilter === "neither"} onClick={() => setBodyFilter("neither")}>Neither (modest)</Chip>
             </div>
             <div className="sort-row">
@@ -717,20 +728,26 @@ function VaultCard({
 
   const isRemoteOnly = post.source === "remote";
   const body = deriveBodyCategories(post);
-  const bodyLabel = body.top && body.bottom
-    ? "Top + Bottom"
-    : body.top
-      ? "Top"
-      : body.bottom
-        ? "Bottom"
-        : null;
-  const bodyClass = body.top && body.bottom
-    ? "body-badge body-badge-both"
-    : body.top
-      ? "body-badge body-badge-top"
-      : body.bottom
-        ? "body-badge body-badge-bottom"
-        : "";
+  // Explicit (genitals visible) is its own badge — surfaces tier-5 content
+  // at a glance, distinct from generic "bottom showing".
+  const bodyLabel = body.genitals
+    ? "Explicit"
+    : body.top && body.bottom
+      ? "Top + Bottom"
+      : body.top
+        ? "Top"
+        : body.bottom
+          ? "Bottom"
+          : null;
+  const bodyClass = body.genitals
+    ? "body-badge body-badge-explicit"
+    : body.top && body.bottom
+      ? "body-badge body-badge-both"
+      : body.top
+        ? "body-badge body-badge-top"
+        : body.bottom
+          ? "body-badge body-badge-bottom"
+          : "";
 
   return (
     <article className="vault-card">
