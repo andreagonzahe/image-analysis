@@ -101,6 +101,37 @@ type SortKey =
 type SourceFilter = "all" | "local" | "remote" | "both";
 type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
 type BodyFilter = "all" | "top" | "butt" | "lingerie" | "both" | "genitals" | "neither";
+type ViewMode = "grid" | "shoots" | "categories";
+
+/**
+ * Pull the leaf folder name out of a full Dropbox path. The full path
+ * is what's stored on the post (so we can disambiguate folders sharing
+ * a name); the leaf is what we show in the UI.
+ *
+ * "/OF Content/2025-05-12 shoot" → "2025-05-12 shoot"
+ * "/OF Content"                   → "OF Content"
+ * "/"                             → "Root"
+ */
+function leafFolderName(fullPath: string | null | undefined): string {
+  if (!fullPath) return "Direct uploads";
+  if (fullPath === "/" || fullPath === "") return "Root";
+  const idx = fullPath.lastIndexOf("/");
+  if (idx < 0) return fullPath;
+  return fullPath.slice(idx + 1) || "Root";
+}
+
+const BODY_CATEGORY_ORDER: Array<{
+  key: BodyFilter;
+  label: string;
+  description: string;
+}> = [
+  { key: "lingerie", label: "Lingerie / tease", description: "Posed in lingerie, swimwear or sensual framing — no explicit nudity." },
+  { key: "top", label: "Top showing", description: "Breasts or cleavage visible (or topless)." },
+  { key: "butt", label: "Butt showing", description: "Buttocks visible — any garment level including thong." },
+  { key: "both", label: "Top + Butt", description: "Both top and butt visible in the same shot." },
+  { key: "genitals", label: "Genitals visible", description: "Fully explicit content — tier 4-5, PPV only." },
+  { key: "neither", label: "Modest", description: "No body parts visible — fully clothed or athletic shots." },
+];
 
 /**
  * Derive coarse "what's showing" categories from the captioner's tags.
@@ -186,6 +217,8 @@ export default function VaultPage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [bodyFilter, setBodyFilter] = useState<BodyFilter>("all");
+  const [folderFilter, setFolderFilter] = useState<string | "all">("all");
+  const [view, setView] = useState<ViewMode>("grid");
   const [sort, setSort] = useState<SortKey>("recent");
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -365,6 +398,16 @@ export default function VaultPage() {
         return true;
       });
     }
+    if (folderFilter !== "all") {
+      // "__unsorted" matches posts with no source_folder (direct uploads
+      // or pre-backfill cloud posts). Any other value is a literal folder
+      // path match.
+      out = out.filter((p) => {
+        const f = p.source_folder ?? null;
+        if (folderFilter === "__unsorted") return !f;
+        return f === folderFilter;
+      });
+    }
 
     const postedTime = (p: MergedPost) =>
       p.posted_at ? new Date(p.posted_at).getTime() : null;
@@ -426,7 +469,74 @@ export default function VaultPage() {
         break;
     }
     return out;
-  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, bodyFilter, sort]);
+  }, [posts, ratingFilter, platformFilter, sourceFilter, statusFilter, bodyFilter, folderFilter, sort]);
+
+  // Aggregate posts by Dropbox parent folder for the "By shoot" view.
+  // Each card shows a thumbnail (most recent post in the folder) +
+  // folder leaf name + count + label of the dominant body category.
+  // Posts with no source_folder land under a synthetic "Direct uploads
+  // / unsorted" bucket so they're still navigable.
+  const shootGroups = useMemo(() => {
+    if (!posts) return [];
+    const map = new Map<string, MergedPost[]>();
+    for (const p of posts) {
+      const key = p.source_folder ?? "__unsorted";
+      const list = map.get(key) ?? [];
+      list.push(p);
+      map.set(key, list);
+    }
+    // Sort each folder's posts by most-recent so the cover thumbnail is fresh.
+    const groups = Array.from(map.entries()).map(([folder, items]) => {
+      items.sort((a, b) => b.created_at - a.created_at);
+      return {
+        folder,
+        leaf: folder === "__unsorted" ? "Direct uploads / unsorted" : leafFolderName(folder),
+        fullPath: folder === "__unsorted" ? null : folder,
+        items,
+        cover: items[0],
+        latest: items[0]?.created_at ?? 0,
+      };
+    });
+    // Show biggest folders first; tie-break by most-recent activity.
+    groups.sort((a, b) => {
+      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      return b.latest - a.latest;
+    });
+    return groups;
+  }, [posts]);
+
+  // Aggregate posts by body category for the "By body part" view.
+  // Categories aren't mutually exclusive (a topless+butt shot lands in
+  // both "top" and "butt"), so a post may appear in multiple folders.
+  const categoryGroups = useMemo(() => {
+    if (!posts) return [];
+    const buckets: Record<BodyFilter, MergedPost[]> = {
+      all: [],
+      top: [],
+      butt: [],
+      both: [],
+      lingerie: [],
+      genitals: [],
+      neither: [],
+    };
+    for (const p of posts) {
+      const { top, butt, genitals, lingerie } = deriveBodyCategories(p);
+      if (genitals) buckets.genitals.push(p);
+      if (top && butt) buckets.both.push(p);
+      else if (top) buckets.top.push(p);
+      else if (butt) buckets.butt.push(p);
+      if (lingerie) buckets.lingerie.push(p);
+      if (!top && !butt && !lingerie) buckets.neither.push(p);
+    }
+    for (const k of Object.keys(buckets) as BodyFilter[]) {
+      buckets[k].sort((a, b) => b.created_at - a.created_at);
+    }
+    return BODY_CATEGORY_ORDER.map((meta) => ({
+      ...meta,
+      items: buckets[meta.key],
+      cover: buckets[meta.key][0],
+    })).filter((g) => g.items.length > 0);
+  }, [posts]);
 
   const platformsInVault = useMemo(() => {
     if (!posts) return [];
@@ -575,6 +685,56 @@ export default function VaultPage() {
 
       {posts && posts.length > 0 && (
         <>
+          <div className="vault-view-tabs" role="tablist" aria-label="Vault view">
+            <button
+              role="tab"
+              aria-selected={view === "grid"}
+              className={`vault-view-tab${view === "grid" ? " is-active" : ""}`}
+              onClick={() => setView("grid")}
+            >
+              All photos
+              <span className="vault-view-tab-count">{posts.length.toLocaleString()}</span>
+            </button>
+            <button
+              role="tab"
+              aria-selected={view === "shoots"}
+              className={`vault-view-tab${view === "shoots" ? " is-active" : ""}`}
+              onClick={() => setView("shoots")}
+            >
+              By shoot
+              <span className="vault-view-tab-count">{shootGroups.length}</span>
+            </button>
+            <button
+              role="tab"
+              aria-selected={view === "categories"}
+              className={`vault-view-tab${view === "categories" ? " is-active" : ""}`}
+              onClick={() => setView("categories")}
+            >
+              By body part
+              <span className="vault-view-tab-count">{categoryGroups.length}</span>
+            </button>
+          </div>
+
+          {folderFilter !== "all" && view === "grid" && (
+            <div className="vault-folder-pill">
+              <span>
+                Filtered to shoot:{" "}
+                <strong>
+                  {folderFilter === "__unsorted"
+                    ? "Direct uploads / unsorted"
+                    : leafFolderName(folderFilter)}
+                </strong>
+              </span>
+              <button
+                className="btn-ghost"
+                onClick={() => setFolderFilter("all")}
+                aria-label="Clear shoot filter"
+              >
+                ✕ Clear
+              </button>
+            </div>
+          )}
+
           <div className="vault-controls">
             <div className="chip-row">
               <Chip active={ratingFilter === "all"} onClick={() => setRatingFilter("all")}>All</Chip>
@@ -635,7 +795,53 @@ export default function VaultPage() {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {view === "shoots" ? (
+            shootGroups.length === 0 ? (
+              <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
+                No shoots yet. Import a Dropbox folder to start organizing.
+              </p>
+            ) : (
+              <div className="vault-folder-grid">
+                {shootGroups.map((g) => (
+                  <FolderCard
+                    key={g.folder}
+                    title={g.leaf}
+                    subtitle={g.fullPath ?? "—"}
+                    count={g.items.length}
+                    cover={g.cover}
+                    thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
+                    onOpen={() => {
+                      setFolderFilter(g.folder);
+                      setView("grid");
+                    }}
+                  />
+                ))}
+              </div>
+            )
+          ) : view === "categories" ? (
+            categoryGroups.length === 0 ? (
+              <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
+                No tagged posts yet.
+              </p>
+            ) : (
+              <div className="vault-folder-grid">
+                {categoryGroups.map((g) => (
+                  <FolderCard
+                    key={g.key}
+                    title={g.label}
+                    subtitle={g.description}
+                    count={g.items.length}
+                    cover={g.cover}
+                    thumbUrl={g.cover ? thumbUrls[g.cover.id] : undefined}
+                    onOpen={() => {
+                      setBodyFilter(g.key);
+                      setView("grid");
+                    }}
+                  />
+                ))}
+              </div>
+            )
+          ) : filtered.length === 0 ? (
             <p style={{ color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
               No posts match the current filters.
             </p>
@@ -822,6 +1028,51 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   return (
     <button className={`chip${active ? " chip-active" : ""}`} onClick={onClick}>
       {children}
+    </button>
+  );
+}
+
+/**
+ * Folder-style card for the "By shoot" and "By body part" views. Shows
+ * a cover thumbnail (the freshest post in the group), the folder name,
+ * a one-line subtitle, and the post count. Click to drill into the
+ * flat grid filtered to just those posts.
+ */
+function FolderCard({
+  title,
+  subtitle,
+  count,
+  cover,
+  thumbUrl,
+  onOpen,
+}: {
+  title: string;
+  subtitle: string;
+  count: number;
+  cover: MergedPost | undefined;
+  thumbUrl?: string;
+  onOpen: () => void;
+}) {
+  const remoteUrl =
+    cover && (cover as MergedPost & { image_url?: string | null }).image_url;
+  const imgSrc = thumbUrl ?? cover?.remote_image_url ?? remoteUrl ?? null;
+  return (
+    <button className="vault-folder-card" onClick={onOpen} aria-label={`Open ${title}`}>
+      <div className="vault-folder-thumb">
+        {imgSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imgSrc} alt="" loading="lazy" />
+        ) : (
+          <div className="vault-folder-thumb-empty" aria-hidden>
+            📁
+          </div>
+        )}
+        <span className="vault-folder-count">{count}</span>
+      </div>
+      <div className="vault-folder-body">
+        <strong className="vault-folder-title">{title}</strong>
+        <span className="vault-folder-subtitle">{subtitle}</span>
+      </div>
     </button>
   );
 }

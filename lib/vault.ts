@@ -25,6 +25,7 @@ export type RemotePost = {
   primary_price_high: number;
   image_path: string | null;
   image_url: string | null; // signed URL valid for ~1 hour
+  source_folder: string | null;
   status: PostStatus;
   posted_at: string | null;
   posted_on_platform: string | null;
@@ -44,6 +45,10 @@ export type MergedPost = {
   thumb_blob?: Blob;
   remote_image_url?: string | null;
   source: "local" | "remote" | "both";
+  // Dropbox parent folder (e.g. "/OF Content/2025-05-12 shoot"). Null
+  // for direct-upload posts and for cloud-only posts created before
+  // the source_folder column existed (until backfilled).
+  source_folder?: string | null;
   status: PostStatus;
   posted_at?: string | null;
   posted_on_platform?: string | null;
@@ -179,6 +184,7 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         ...existing,
         source: "both",
         remote_image_url: p.image_url ?? undefined,
+        source_folder: p.source_folder,
         status: p.status,
         posted_at: p.posted_at,
         posted_on_platform: p.posted_on_platform,
@@ -196,6 +202,7 @@ export async function listMergedPosts(): Promise<MergedPost[]> {
         primary_price_high: p.primary_price_high,
         remote_image_url: p.image_url ?? undefined,
         source: "remote",
+        source_folder: p.source_folder,
         status: p.status,
         posted_at: p.posted_at,
         posted_on_platform: p.posted_on_platform,

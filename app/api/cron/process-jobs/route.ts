@@ -491,6 +491,11 @@ async function runAnalyze(job: Job): Promise<void> {
     // against this post (cross-batch). Falls back to null if this job
     // came in through a path that skipped the screen pass.
     phash: typeof job.input.screen_phash === "string" ? job.input.screen_phash : null,
+    // Parent folder of the source file. Used by the vault "By shoot"
+    // view to group photos from the same session together.
+    //   Dropbox:        "/OF Content/2025-05-12 shoot"  (parent of path_display)
+    //   Direct upload:  null                            (UI buckets under "Direct uploads")
+    source_folder: extractParentFolder(job.input),
   };
 
   const { error } = await supabase.from("posts").insert(row);
@@ -507,6 +512,25 @@ async function runAnalyze(job: Job): Promise<void> {
  * Same logic as /api/analyze/route.ts enforcePolicy — duplicated here so the
  * worker doesn't depend on the request-time route file.
  */
+/**
+ * Pull the parent folder out of a job input so we can group vault posts
+ * by "shoot" (the user's own Dropbox organization).
+ *
+ * For Dropbox imports, the file's `dropbox_path` looks like
+ * "/OF Content/2025-05-12 shoot/IMG_001.jpg" — we want
+ * "/OF Content/2025-05-12 shoot" as the folder. For non-Dropbox
+ * sources (direct upload), there's no folder structure to honor →
+ * null, UI buckets these under "Direct uploads."
+ */
+function extractParentFolder(input: Record<string, unknown>): string | null {
+  if (input.source !== "dropbox") return null;
+  const path = typeof input.dropbox_path === "string" ? input.dropbox_path : null;
+  if (!path) return null;
+  const lastSlash = path.lastIndexOf("/");
+  if (lastSlash <= 0) return null; // "/file.jpg" → root, no folder
+  return path.slice(0, lastSlash);
+}
+
 function inferTier(verdict: "nsfw" | "normal", tags: ImageTags): ContentTier {
   if (tags.pose_intent === "explicit_act" || tags.sensuality === "explicit_sexual") return 5;
   if (tags.attire === "fully_nude") return 4;
