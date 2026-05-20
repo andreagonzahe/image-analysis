@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { PLATFORMS } from "@/lib/platforms";
 import {
@@ -11,8 +14,6 @@ import {
   METRICS,
   ARCHETYPES,
 } from "@/lib/creator-framework";
-
-export const metadata = { title: "Creator Funnel Strategy — Postwise" };
 
 const platformName = (id: string) => PLATFORMS.find((p) => p.id === id)?.name ?? id;
 
@@ -47,10 +48,22 @@ export default function StrategyPage() {
         <h2>Inside the funnel: the five-tier content ladder</h2>
         <p>
           For paid creators, the content itself sits on a five-rung ladder. Each rung serves a
-          specific funnel role.
+          specific funnel role. <em>Click any tier</em> to see what counts, what to charge, and
+          where it does (and doesn&rsquo;t) belong.
         </p>
 
         <TierLadder />
+      </section>
+
+      {/* ============ 2b. PLATFORM-BY-PLATFORM SELECTOR ============ */}
+      <section className="legal">
+        <h2>Where each platform fits</h2>
+        <p>
+          The strategist routes every piece against this table. <em>Click a platform</em> to see
+          its caption style, what it&rsquo;s best for, why it works, and how to mess it up.
+        </p>
+
+        <PlatformGrid />
       </section>
 
       {/* ============ 3. CONTENT PILLARS ============ */}
@@ -199,27 +212,251 @@ function FunnelDiagram() {
   );
 }
 
+type TierDetail = {
+  n: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  role: string;
+  color: string;
+  bodyParts: string;
+  price: string;
+  goes: string[]; // platform ids where this tier belongs
+  avoid: string[]; // platform ids that would BURN this tier
+  captionTone: string;
+};
+
+const TIERS: TierDetail[] = [
+  {
+    n: 1,
+    label: "Tier 1 — Lifestyle / SFW",
+    role: "Top-of-funnel discovery. The hook.",
+    color: "#15803d",
+    bodyParts: "Face / shoulders / fully clothed. No skin focus.",
+    price: "Free — these never get a price tag. They're how new people find you.",
+    goes: ["instagram", "tiktok", "x", "bluesky", "pinterest", "linkedin"],
+    avoid: [],
+    captionTone:
+      "Warm, observational, lifestyle-y. Personality first. Hashtags where the platform expects them (IG, Pinterest).",
+  },
+  {
+    n: 2,
+    label: "Tier 2 — Lingerie / implied / suggestive",
+    role: "Funnel bridge. Teases the paid stuff.",
+    color: "#b45309",
+    bodyParts: "Cleavage · thighs · midriff visible. Lingerie / swimwear / underwear as primary garment.",
+    price: "Tip-unlock $3-10 on OF/Fansly, OR free loyalty content on the paid wall, OR Premium Snap monthly $10-15.",
+    goes: ["x-nsfw", "reddit-nsfw", "snapchat", "snapchat-premium", "onlyfans", "fansly", "patreon"],
+    avoid: [],
+    captionTone:
+      "Tease + funnel CTA. 'More on my OF 🔥 link in bio'. Spicy without crude. Build curiosity, not desperation.",
+  },
+  {
+    n: 3,
+    label: "Tier 3 — Topless / partial nude (artistic)",
+    role: "Soft paywall. Wall content for paid subs.",
+    color: "#d97706",
+    bodyParts:
+      "Breasts visible (no genitals) OR buttocks visible. Tasteful framing — sensual_aesthetic or erotic_intentional, not explicit.",
+    price: "PPV $8-22 depending on framing, OR tier-locked $10-15/mo on the paid wall.",
+    goes: ["onlyfans", "fansly", "patreon", "snapchat-premium"],
+    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw"],
+    captionTone:
+      "Confident, intimate, NOT crude. Tease around what's visible — 'you've been thinking about this'. Don't name body parts directly.",
+  },
+  {
+    n: 4,
+    label: "Tier 4 — Fully nude (explicit pose)",
+    role: "Premium paywall — PPV unlock territory.",
+    color: "#c2410c",
+    bodyParts: "Genitals OR full nudity visible. Modeling_seductive or explicit framing.",
+    price: "PPV $12-30 baseline. +20-40% if genitals visible. +30-50% if professional production.",
+    goes: ["onlyfans", "fansly"],
+    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw", "snapchat", "patreon"],
+    captionTone:
+      "In PPV DMs the language gets direct. Wall caption (if doing teaser+PPV) stays implicit — let the DM do the explicit work.",
+  },
+  {
+    n: 5,
+    label: "Tier 5 — Explicit acts / niche kink",
+    role: "Top of the paywall — customs + premium PPV.",
+    color: "#991b1b",
+    bodyParts: "Explicit sexual acts OR niche fetish content.",
+    price: "PPV $20-100+ depending on solo / partnered / group / kink niche.",
+    goes: ["onlyfans", "fansly"],
+    avoid: [
+      "instagram",
+      "tiktok",
+      "x",
+      "x-nsfw",
+      "bluesky",
+      "linkedin",
+      "pinterest",
+      "reddit-sfw",
+      "reddit-nsfw",
+      "snapchat",
+      "snapchat-premium",
+      "patreon",
+    ],
+    captionTone:
+      "DM-style sell message paired with the unlock. Customs offer: 'made something just for you...'. Never on a wall.",
+  },
+];
+
 function TierLadder() {
-  const tiers = [
-    { n: 1, label: "Tier 1 — Lifestyle / SFW", role: "Top of funnel · social free", color: "#15803d" },
-    { n: 2, label: "Tier 2 — Lingerie / implied", role: "Teaser · funnel bridge", color: "#b45309" },
-    { n: 3, label: "Tier 3 — Topless / partial nude", role: "Soft paywall", color: "#d97706" },
-    { n: 4, label: "Tier 4 — Fully nude", role: "Premium paywall (PPV)", color: "#c2410c" },
-    { n: 5, label: "Tier 5 — Explicit / niche", role: "Top-tier paywall · customs", color: "#991b1b" },
-  ];
+  const [openTier, setOpenTier] = useState<number | null>(null);
   return (
     <div className="viz-ladder">
-      {tiers.map((t) => (
-        <div key={t.n} className="viz-ladder-row" style={{ borderLeftColor: t.color }}>
-          <span className="viz-ladder-tag" style={{ background: t.color }}>T{t.n}</span>
-          <div>
-            <h4>{t.label}</h4>
-            <p>{t.role}</p>
+      {TIERS.map((t) => {
+        const isOpen = openTier === t.n;
+        return (
+          <div
+            key={t.n}
+            className={`viz-ladder-row viz-ladder-row-clickable${isOpen ? " viz-ladder-row-open" : ""}`}
+            style={{ borderLeftColor: t.color }}
+            onClick={() => setOpenTier(isOpen ? null : t.n)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setOpenTier(isOpen ? null : t.n);
+              }
+            }}
+          >
+            <div className="viz-ladder-head">
+              <span className="viz-ladder-tag" style={{ background: t.color }}>T{t.n}</span>
+              <div className="viz-ladder-text">
+                <h4>{t.label}</h4>
+                <p>{t.role}</p>
+              </div>
+              <span className="viz-ladder-toggle" aria-hidden>{isOpen ? "−" : "+"}</span>
+            </div>
+            {isOpen && (
+              <div className="viz-ladder-detail">
+                <DetailRow label="What's visible">{t.bodyParts}</DetailRow>
+                <DetailRow label="Price">{t.price}</DetailRow>
+                <DetailRow label="Where it belongs">
+                  <div className="viz-platform-chips">
+                    {t.goes.map((id) => (
+                      <span key={id} className="viz-chip viz-chip-go">{platformName(id)}</span>
+                    ))}
+                  </div>
+                </DetailRow>
+                {t.avoid.length > 0 && (
+                  <DetailRow label="NEVER here">
+                    <div className="viz-platform-chips">
+                      {t.avoid.map((id) => (
+                        <span key={id} className="viz-chip viz-chip-avoid">{platformName(id)}</span>
+                      ))}
+                    </div>
+                  </DetailRow>
+                )}
+                <DetailRow label="Caption tone">{t.captionTone}</DetailRow>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="viz-detail-row">
+      <span className="viz-detail-label">{label}</span>
+      <div className="viz-detail-body">{children}</div>
+    </div>
+  );
+}
+
+function PlatformGrid() {
+  const [selected, setSelected] = useState<string>("instagram");
+  const platform = PLATFORMS.find((p) => p.id === selected) ?? PLATFORMS[0];
+
+  // Group platforms by funnel role for cleaner navigation.
+  const groups = [
+    {
+      label: "Free social (top of funnel)",
+      ids: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw"],
+    },
+    {
+      label: "Adult social (teaser bridge)",
+      ids: ["x-nsfw", "reddit-nsfw", "snapchat"],
+    },
+    {
+      label: "Paid platforms",
+      ids: ["onlyfans", "fansly", "snapchat-premium", "patreon"],
+    },
+  ];
+
+  return (
+    <div className="viz-platforms">
+      <div className="viz-platforms-nav">
+        {groups.map((g) => (
+          <div key={g.label} className="viz-platforms-nav-group">
+            <p className="viz-platforms-nav-label">{g.label}</p>
+            <div className="viz-platforms-nav-chips">
+              {g.ids.map((id) => {
+                const p = PLATFORMS.find((x) => x.id === id);
+                if (!p) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`viz-platforms-chip${selected === id ? " viz-platforms-chip-active" : ""}${p.paid ? " viz-platforms-chip-paid" : ""}`}
+                    onClick={() => setSelected(id)}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <article className="viz-platforms-detail">
+        <header className="viz-platforms-detail-head">
+          <h3>
+            {platform.name}
+            <span
+              className={`viz-platforms-policy viz-platforms-policy-${platform.policy.replace(/-/g, "_")}`}
+            >
+              {policyLabel(platform.policy)}
+            </span>
+            {platform.paid && <span className="viz-platforms-paid-tag">Paid platform</span>}
+          </h3>
+        </header>
+
+        <DetailRow label="Audience">{platform.audience}</DetailRow>
+        <DetailRow label="Best for">{platform.bestFor}</DetailRow>
+        <DetailRow label="Caption style">{platform.captionStyle}</DetailRow>
+        <DetailRow label="Hashtags">{platform.hashtagNorm}</DetailRow>
+        <DetailRow label="Why it works">{platform.whyItWorks}</DetailRow>
+        <DetailRow label="Why to avoid (when it doesn't fit)">{platform.whyToAvoid}</DetailRow>
+
+        {platform.wisdom.length > 0 && (
+          <DetailRow label="Creator wisdom we cite">
+            <ul className="viz-platforms-wisdom">
+              {platform.wisdom.map((w) => (
+                <li key={w.id}>
+                  <strong>&ldquo;{w.principle}&rdquo;</strong>
+                  <span className="viz-platforms-wisdom-attr"> — {w.attribution}</span>
+                </li>
+              ))}
+            </ul>
+          </DetailRow>
+        )}
+      </article>
+    </div>
+  );
+}
+
+function policyLabel(policy: string): string {
+  if (policy === "no-nudity") return "No nudity";
+  if (policy === "suggestive-ok") return "Suggestive OK";
+  if (policy === "explicit-ok") return "Explicit OK";
+  return policy;
 }
 
 function PillarsGrid() {
