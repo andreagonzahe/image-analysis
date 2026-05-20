@@ -53,35 +53,50 @@ function buildSlots(profile: CreatorProfile | null): Slot[] {
   const slots: Slot[] = [];
   const platforms = profile?.primary_platforms ?? [];
 
-  // OnlyFans
-  if (platforms.includes("onlyfans")) {
-    if (profile?.of_account_mode === "free_paid_pair") {
-      slots.push({
-        id: "of-free",
-        title: "OnlyFans — Free promo",
-        subtitle: "Funnel content. Tier 1–2, drives subs to your paid account.",
-        platformId: "onlyfans",
-        kind: "of_free",
-        paid: true,
-      });
-      slots.push({
-        id: "of-paid",
-        title: "OnlyFans — Paid sub",
-        subtitle: "Subscriber feed. Tier 3+ wall posts or PPV DMs.",
-        platformId: "onlyfans",
-        kind: "of_paid",
-        paid: true,
-      });
-    } else {
-      slots.push({
-        id: "of-single",
-        title: "OnlyFans",
-        subtitle: "Wall post or PPV — depends on the piece.",
-        platformId: "onlyfans",
-        kind: "of_single",
-        paid: true,
-      });
-    }
+  // OnlyFans — now three distinct destinations.
+  //   * onlyfans_free  → free promo account (Tier 1-2 teasers)
+  //   * onlyfans_wall  → paid sub feed (Tier 2-3 loyalty)
+  //   * onlyfans_ppv   → DM unlock (Tier 3-5 explicit)
+  //
+  // The user's profile primary_platforms list now includes whichever
+  // of these they actually run. For back-compat with profiles that
+  // still have the legacy "onlyfans" id, we treat it as "they run a
+  // paid account" and add a wall + PPV slot.
+  const hasLegacyOf = platforms.includes("onlyfans");
+  const hasOfFree = platforms.includes("onlyfans_free") ||
+    (hasLegacyOf && profile?.of_account_mode === "free_paid_pair");
+  const hasOfWall = platforms.includes("onlyfans_wall") || hasLegacyOf;
+  const hasOfPpv = platforms.includes("onlyfans_ppv") || hasLegacyOf;
+
+  if (hasOfFree) {
+    slots.push({
+      id: "of-free",
+      title: "OnlyFans — Free promo",
+      subtitle: "Funnel content. Tier 1–2 teasers that drive subs to your paid account.",
+      platformId: "onlyfans_free",
+      kind: "of_free",
+      paid: true,
+    });
+  }
+  if (hasOfWall) {
+    slots.push({
+      id: "of-wall",
+      title: "OnlyFans — Paid wall",
+      subtitle: "Loyalty content for subs. Tier 2–3 lingerie / topless artistic max.",
+      platformId: "onlyfans_wall",
+      kind: "of_paid",
+      paid: true,
+    });
+  }
+  if (hasOfPpv) {
+    slots.push({
+      id: "of-ppv",
+      title: "OnlyFans — PPV (DMs)",
+      subtitle: "Pay-per-view DM unlocks. Tier 3–5 explicit content. Revenue driver.",
+      platformId: "onlyfans_ppv",
+      kind: "of_paid",
+      paid: true,
+    });
   }
 
   // Fansly
@@ -115,9 +130,11 @@ function buildSlots(profile: CreatorProfile | null): Slot[] {
     }
   }
 
-  // Every active social/free platform gets one slot.
+  // Every active social/free platform gets one slot. Skip OF + Fansly
+  // ids (already handled above with their own slot logic).
+  const OF_IDS = new Set(["onlyfans", "onlyfans_free", "onlyfans_wall", "onlyfans_ppv"]);
   for (const id of platforms) {
-    if (id === "onlyfans" || id === "fansly") continue;
+    if (OF_IDS.has(id) || id === "fansly") continue;
     slots.push({
       id: `social-${id}`,
       title: platformName(id),
@@ -136,8 +153,19 @@ function buildSlots(profile: CreatorProfile | null): Slot[] {
  * the given platform?
  */
 function postHasPlatform(post: MergedPost, platformId: string): boolean {
-  if (post.primary_platform === platformId) return true;
-  return (post.analysis.alternatives ?? []).some((a) => a.platform === platformId);
+  // Legacy posts have primary_platform = "onlyfans" (no destination split).
+  // When matching against the new specific OF ids, treat the legacy id as a
+  // weak match for onlyfans_wall (default) so old posts still surface.
+  const legacyMatches =
+    post.primary_platform === "onlyfans" &&
+    (platformId === "onlyfans_wall" || platformId === "onlyfans_ppv");
+  if (post.primary_platform === platformId || legacyMatches) return true;
+  return (post.analysis.alternatives ?? []).some(
+    (a) =>
+      a.platform === platformId ||
+      (a.platform === "onlyfans" &&
+        (platformId === "onlyfans_wall" || platformId === "onlyfans_ppv"))
+  );
 }
 
 /**

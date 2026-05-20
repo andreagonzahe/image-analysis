@@ -31,14 +31,14 @@ export const FUNNEL_LAYERS: FunnelLayer[] = [
     id: "monetization",
     label: "Monetization hub",
     job: "Convert leads to paying subscribers and sell PPV / tier-locked content.",
-    platforms: ["onlyfans", "fansly", "patreon"],
-    examples: ["Subscription content", "PPV unlocks", "Tier-locked posts", "Mass DM offers"],
+    platforms: ["onlyfans_wall", "onlyfans_ppv", "fansly", "patreon"],
+    examples: ["Subscription content (paid wall)", "PPV unlocks in DMs", "Tier-locked posts", "Mass DM offers"],
   },
   {
     id: "high-ticket",
     label: "High-ticket layer",
     job: "Premium services for proven spenders. The labor-intensive offers with caps.",
-    platforms: ["snapchat-premium", "onlyfans", "fansly"],
+    platforms: ["snapchat-premium", "onlyfans_ppv", "fansly"],
     examples: ["Custom commissions ($50–500+)", "Sexting / messaging packages", "Voice notes / audio", "Premium chat membership"],
   },
 ];
@@ -232,7 +232,7 @@ export const FRAMEWORK_PROMPT_SUMMARY = `
 Each platform plays ONE of four funnel roles:
 - discovery (top): IG, TikTok, X, Bluesky, Pinterest, Reddit-SFW, public Snap — maximum reach
 - warming (middle): X-NSFW, Bluesky, Reddit-NSFW, Snap — teasers, parasocial, build qualified leads
-- monetization (paywall): OnlyFans, Fansly, Patreon — subs + PPV + bundles
+- monetization (paywall): OnlyFans is THREE destinations — onlyfans_free (the free promo account as funnel-top), onlyfans_wall (paid sub feed for loyalty content tier 2-3), onlyfans_ppv (DM unlocks for tier 3-5 explicit). Plus Fansly and Patreon.
 - high-ticket (premium): customs, sexting, voice notes, premium chat, capped premium tier
 
 A caption is always one of FOUR types — identify which one when generating:

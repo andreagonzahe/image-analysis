@@ -244,7 +244,7 @@ const TIERS: TierDetail[] = [
     color: "#b45309",
     bodyParts: "Cleavage · thighs · midriff visible. Lingerie / swimwear / underwear as primary garment.",
     price: "Tip-unlock $3-10 on OF/Fansly, OR free loyalty content on the paid wall, OR Premium Snap monthly $10-15.",
-    goes: ["x-nsfw", "reddit-nsfw", "snapchat", "snapchat-premium", "onlyfans", "fansly", "patreon"],
+    goes: ["x-nsfw", "reddit-nsfw", "snapchat", "snapchat-premium", "onlyfans_free", "onlyfans_wall", "fansly", "patreon"],
     avoid: [],
     captionTone:
       "Tease + funnel CTA. 'More on my OF 🔥 link in bio'. Spicy without crude. Build curiosity, not desperation.",
@@ -257,8 +257,8 @@ const TIERS: TierDetail[] = [
     bodyParts:
       "Breasts visible (no genitals) OR buttocks visible. Tasteful framing — sensual_aesthetic or erotic_intentional, not explicit.",
     price: "PPV $8-22 depending on framing, OR tier-locked $10-15/mo on the paid wall.",
-    goes: ["onlyfans", "fansly", "patreon", "snapchat-premium"],
-    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw"],
+    goes: ["onlyfans_wall", "onlyfans_ppv", "fansly", "patreon", "snapchat-premium"],
+    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw", "onlyfans_free"],
     captionTone:
       "Confident, intimate, NOT crude. Tease around what's visible — 'you've been thinking about this'. Don't name body parts directly.",
   },
@@ -269,8 +269,8 @@ const TIERS: TierDetail[] = [
     color: "#c2410c",
     bodyParts: "Genitals OR full nudity visible. Modeling_seductive or explicit framing.",
     price: "PPV $12-30 baseline. +20-40% if genitals visible. +30-50% if professional production.",
-    goes: ["onlyfans", "fansly"],
-    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw", "snapchat", "patreon"],
+    goes: ["onlyfans_ppv", "fansly"],
+    avoid: ["instagram", "tiktok", "x", "bluesky", "linkedin", "pinterest", "reddit-sfw", "snapchat", "patreon", "onlyfans_free", "onlyfans_wall"],
     captionTone:
       "In PPV DMs the language gets direct. Wall caption (if doing teaser+PPV) stays implicit — let the DM do the explicit work.",
   },
@@ -281,7 +281,7 @@ const TIERS: TierDetail[] = [
     color: "#991b1b",
     bodyParts: "Explicit sexual acts OR niche fetish content.",
     price: "PPV $20-100+ depending on solo / partnered / group / kink niche.",
-    goes: ["onlyfans", "fansly"],
+    goes: ["onlyfans_ppv", "fansly"],
     avoid: [
       "instagram",
       "tiktok",
@@ -295,6 +295,8 @@ const TIERS: TierDetail[] = [
       "snapchat",
       "snapchat-premium",
       "patreon",
+      "onlyfans_free",
+      "onlyfans_wall",
     ],
     captionTone:
       "DM-style sell message paired with the unlock. Customs offer: 'made something just for you...'. Never on a wall.",
@@ -384,8 +386,12 @@ function PlatformGrid() {
       ids: ["x-nsfw", "reddit-nsfw", "snapchat"],
     },
     {
-      label: "Paid platforms",
-      ids: ["onlyfans", "fansly", "snapchat-premium", "patreon"],
+      label: "OnlyFans (3 destinations)",
+      ids: ["onlyfans_free", "onlyfans_wall", "onlyfans_ppv"],
+    },
+    {
+      label: "Other paid",
+      ids: ["fansly", "snapchat-premium", "patreon"],
     },
   ];
 

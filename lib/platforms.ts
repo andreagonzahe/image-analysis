@@ -177,22 +177,97 @@ export const PLATFORMS: Platform[] = [
       { id: "xn-pin", principle: "Pin a free preview to your profile", attribution: "Adult creator coaching guides", context: "New visitors who click your profile from a tagged post should see your best 1-second hook pinned at the top. That pin does more conversion work than any single post." },
     ],
   },
+  // OnlyFans is split into THREE distinct destinations because each has a
+  // completely different content rule, audience, and revenue role:
+  //
+  //   onlyfans_free  — the free/promo OF account (anyone can subscribe
+  //                    at $0). Lead-magnet feed; lives at the top of the
+  //                    funnel. Tier 1-2 only — basically X-NSFW-style
+  //                    teaser content with a CTA to the paid account.
+  //
+  //   onlyfans_wall  — the paid account's feed (subscribers see this for
+  //                    free as part of their monthly sub). Loyalty
+  //                    content. Tier 2-3 max — lingerie, topless
+  //                    artistic, suggestive sets. Putting tier 4-5 here
+  //                    gives subs the climax for free and tanks PPV
+  //                    revenue.
+  //
+  //   onlyfans_ppv   — pay-per-view DMs to existing subs. Each unlock is
+  //                    priced individually ($10-100+). Tier 3-5 nudity
+  //                    and explicit content lives here exclusively. The
+  //                    revenue driver.
+  //
+  // The legacy id `onlyfans` (kept as the next entry) maps to onlyfans_wall
+  // for display, so existing vault posts still render correctly.
   {
-    id: "onlyfans",
-    name: "OnlyFans",
+    id: "onlyfans_free",
+    name: "OnlyFans · Free page",
+    policy: "no-nudity",
+    paid: false,
+    audience: "Anyone — free promo account at the top of the funnel",
+    captionStyle: "Teaser-y, hook-driven. Hint at what's on the paid account. Mention the upgrade link in the bio.",
+    hashtagNorm: "Light — the audience already found you. Bio link does the conversion work, not hashtags.",
+    bestFor: "Tier 1-2 only. Suggestive but never nude — lingerie or swimwear with a strong tease frame, behind-the-scenes lifestyle, full-clothed previews. Every post should make the viewer want to upgrade to the paid account for more.",
+    whyItWorks: "A free OF is the highest-converting funnel because the audience is one tap from subscribing. Unlike Instagram or X where they leave to find your paid account, the upgrade happens inside OF. Treat this like a landing page, not a content destination.",
+    whyToAvoid: "Posting actual nudity here defeats the whole point — there's no reason to upgrade if the free account already shows everything. Also keeps you within OF's looser policy for non-explicit accounts.",
+    composeUrl: "https://onlyfans.com/posts/new",
+    wisdom: [
+      { id: "off-funnel", principle: "Free OF is a landing page, not a content destination", attribution: "Adult-funnel coaching consensus", context: "The conversion ratio from free OF to paid OF (in-platform tap) is wildly higher than from external social. Most top earners run a strict 2-account model — free is for hooks, paid is for content." },
+    ],
+  },
+  {
+    id: "onlyfans_wall",
+    name: "OnlyFans · Paid wall",
+    policy: "suggestive-ok",
+    paid: true,
+    audience: "Existing paid subscribers reading their main feed",
+    captionStyle: "Personal, intimate, direct address ('hey babe...'). Treats the reader as a single individual, not a crowd.",
+    hashtagNorm: "None inside the platform.",
+    bestFor: "Tier 2-3 max. Loyalty content for paying subs — lingerie sets, topless artistic, full-clothed teasers from a paid shoot. The wall is for FOMO and retention; it makes subs feel they're getting consistent value so they don't churn.",
+    whyItWorks: "Subscribers paid for parasocial intimacy. The wall is where that promise gets delivered — a steady drip of content that addresses them like a single person. Two-three wall posts a week beats one weekly polished post for retention.",
+    whyToAvoid: "Posting Tier 4-5 nudity on the wall gives existing subs the climax for free. They'll keep their sub but never unlock a PPV. Save explicit content for onlyfans_ppv.",
+    composeUrl: "https://onlyfans.com/posts/new",
+    wisdom: [
+      { id: "ofw-parasocial", principle: "Parasocial intimacy is the actual product, not the content", attribution: "Adult-industry agency consensus", context: "Subscribers can find explicit content for free everywhere. They pay for the feeling of a relationship. Caption tone matters more than image quality past a baseline." },
+      { id: "ofw-retention", principle: "Wall content is retention, not revenue", attribution: "OnlyFans creator coaching", context: "The wall's job is to keep subs from churning, not to convert them to a higher tier. The revenue uplift comes from PPV. Use the wall to keep them happy enough to stay subscribed." },
+    ],
+  },
+  {
+    id: "onlyfans_ppv",
+    name: "OnlyFans · PPV (DMs)",
     policy: "explicit-ok",
     paid: true,
-    audience: "Existing paid subscribers",
-    captionStyle: "Personal, intimate, direct address ('hey babe...'). Often includes PPV pricing or DM hook.",
-    hashtagNorm: "None inside the platform; matters for cross-promo",
-    bestFor: "On the PAID-account WALL: Tier 1-3 only (lingerie/topless max, ideally lingerie + suggestive). Tier 4-5 nudity goes as PPV DMs, NOT on the feed — wall is for FOMO/retention, full unlocks are the revenue driver. On the FREE/promo account: same as social media — teaser content (Tier 1-2) designed to convert to the paid sub.",
-    whyItWorks: "OnlyFans subscribers pay specifically for parasocial intimacy. A post that addresses them as an individual ('I made this for you') outperforms generic content even if the image quality is identical. The two-tier setup (free promo → paid sub → PPV unlocks) is the top-revenue funnel: free wall trains the audience, paid wall rewards them with consistent loyalty content, PPV captures peak unlocks.",
-    whyToAvoid: "Posting Tier 4-5 nudity on the WALL (even paid wall) gives subs the climax for free and tanks per-piece PPV revenue. Also some content categories (extreme kink, fetish material) violate OF's stricter ToS — leaning into those on OF instead of Fansly will get accounts terminated with banked earnings frozen.",
+    audience: "Paid subscribers receiving locked PPV in their DMs",
+    captionStyle: "DM-style sales message. Personal hook + concrete tease + clear unlock price. 'Just made you something special for $X — full set, my best one yet 💋'",
+    hashtagNorm: "None.",
+    bestFor: "Tier 3-5 explicit content. Topless artistic ($8-18), nude boudoir ($12-22), explicit solo ($15-30), partnered ($30-60). Every unlock is priced individually. This is the revenue driver — the wall builds the relationship, PPV captures the spend.",
+    whyItWorks: "Subscribers will pay $15-50 for a single piece of content if they feel it was made specifically for them and they can't see it on the wall. Mass-DM tools let you sell to your entire audience while keeping the message feeling 1-1.",
+    whyToAvoid: "Don't put your most explicit content on the wall and then try to also sell it as PPV — once subs see it free, they won't pay to unlock. Pick ONE destination per shot.",
     composeUrl: "https://onlyfans.com/my/chats",
     wisdom: [
-      { id: "of-parasocial", principle: "Parasocial intimacy is the actual product, not the content", attribution: "Adult-industry agency consensus (ELITE, Centro, etc.)", context: "Subscribers can find explicit content for free everywhere. They pay for the feeling that they have a relationship with you. Caption tone matters more than image quality past a baseline." },
-      { id: "of-dms", principle: "DM consistency matters more than feed frequency", attribution: "OnlyFans creator coaching consensus", context: "The top-earning creators spend most of their hours on personalized DMs to existing subs, not creating new feed content. Mass-message tools that feel personal are a huge unlock." },
+      { id: "ofppv-dms", principle: "DM consistency drives more revenue than feed frequency", attribution: "OnlyFans creator coaching consensus", context: "The top-earning creators spend most of their hours on PPV mass-DMs to existing subs, not creating new feed content. The 1-1-feeling DM is where the money lives." },
+      { id: "ofppv-escalation", principle: "Always plan a drop-price escalation", attribution: "Adult mass-DM playbooks", context: "Send the initial PPV at full price. 24h later, drop it 30-50% and re-send only to non-unlockers. This squeezes ~2x revenue out of the same content versus a single-price send." },
     ],
+  },
+
+  // DEPRECATED legacy id. Existing vault posts created before the OF
+  // split was introduced still carry `primary_platform: "onlyfans"`.
+  // We keep this entry so those posts continue to render with a sensible
+  // label. New strategist runs use onlyfans_free / onlyfans_wall /
+  // onlyfans_ppv instead.
+  {
+    id: "onlyfans",
+    name: "OnlyFans (legacy)",
+    policy: "explicit-ok",
+    paid: true,
+    audience: "Legacy OF entry — re-analyze the post to map it to free / wall / PPV.",
+    captionStyle: "—",
+    hashtagNorm: "—",
+    bestFor: "This post was analyzed before OnlyFans was split into three destinations (free promo / paid wall / PPV DMs). Re-analyze to get a specific routing.",
+    whyItWorks: "—",
+    whyToAvoid: "—",
+    composeUrl: "https://onlyfans.com/my/chats",
+    wisdom: [],
   },
   {
     id: "fansly",
@@ -264,3 +339,36 @@ export const PLATFORMS: Platform[] = [
 ];
 
 export const PLATFORM_IDS = PLATFORMS.map((p) => p.id);
+
+/**
+ * Map a legacy "onlyfans" id (with optional distribution_mode hint) to
+ * one of the three new specific OF destinations. Used when displaying
+ * vault posts that were analyzed before the OF split landed.
+ *
+ *   onlyfans + dm-mode "ppv"   → onlyfans_ppv
+ *   onlyfans + dm-mode "wall"  → onlyfans_wall
+ *   onlyfans + dm-mode "both"  → onlyfans_wall (the visible part)
+ *   onlyfans + null/unknown    → onlyfans_wall (most common default)
+ *
+ * Anything that isn't legacy "onlyfans" passes through unchanged.
+ */
+export function normalizeOnlyFansId(
+  platformId: string,
+  distributionMode?: "wall" | "ppv" | "both" | null
+): string {
+  if (platformId !== "onlyfans") return platformId;
+  if (distributionMode === "ppv") return "onlyfans_ppv";
+  return "onlyfans_wall"; // wall, both, null → wall as default
+}
+
+/** All three OnlyFans destination ids. Useful for "is this any OF tier?" checks. */
+export const ONLYFANS_PLATFORM_IDS = ["onlyfans_free", "onlyfans_wall", "onlyfans_ppv"] as const;
+
+/**
+ * Returns true if the platform is one of the three OF destinations OR
+ * the legacy `onlyfans` id (so callers can still match all OF posts
+ * regardless of when they were analyzed).
+ */
+export function isOnlyFansPlatform(platformId: string): boolean {
+  return platformId === "onlyfans" || ONLYFANS_PLATFORM_IDS.includes(platformId as typeof ONLYFANS_PLATFORM_IDS[number]);
+}

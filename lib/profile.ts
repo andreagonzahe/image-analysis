@@ -138,7 +138,9 @@ export const PRIMARY_PLATFORMS_OPTIONS = [
   "x-nsfw",
   "snapchat",
   "snapchat-premium",
-  "onlyfans",
+  "onlyfans_free",
+  "onlyfans_wall",
+  "onlyfans_ppv",
   "fansly",
   "patreon",
 ];
@@ -200,7 +202,7 @@ export function profileSummaryForPrompt(p: CreatorProfile | null | undefined): s
   }
   if (p!.of_account_mode === "free_paid_pair") {
     lines.push(
-      "- runs a TWO-account OnlyFans setup: a free promo account (funnel from social) + a paid sub account. When recommending OF, favor wall posts on the FREE account for Tier 1-2 funnel content, and PPV/wall on the PAID account for Tier 3+. The 'distribution_mode' field should reflect this."
+      "- runs a TWO-account OnlyFans setup: a free promo account + a paid sub account. When the recommendation is OF, pick the SPECIFIC destination: onlyfans_free (the free promo account, Tier 1-2 funnel teasers), onlyfans_wall (paid account feed, Tier 2-3 loyalty content), or onlyfans_ppv (DM unlock, Tier 3-5 explicit). The platform id IS the distribution decision — distribution_mode should be null."
     );
   }
   if (p!.fansly_account_mode === "free_paid_pair") {

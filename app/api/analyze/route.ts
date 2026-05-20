@@ -127,17 +127,26 @@ function enforcePolicy(strategy: AnalysisResult, verdict: "nsfw" | "normal", tag
       if (paidAlt) {
         fixed.primary_recommendation = paidAlt;
       } else {
+        // Tier 3 → onlyfans_wall (paid sub feed loyalty content).
+        // Tier 4-5 → onlyfans_ppv (DM unlock — never on the wall).
+        const fallbackId = tier >= 4 ? "onlyfans_ppv" : "onlyfans_wall";
+        const fallbackReason =
+          tier >= 4
+            ? "Re-routed by the funnel layer: tier 4-5 explicit content. Defaulting to OnlyFans PPV (DM unlock) — never on the wall, where subs would see it free and skip the unlock."
+            : "Re-routed by the funnel layer: tier 3 paid content. Defaulting to OnlyFans paid wall — Tier-3 sweet spot for loyalty value without burning PPV revenue.";
         fixed.primary_recommendation = {
-          platform: "onlyfans",
-          reason:
-            "Re-routed by the funnel layer: this is paid-tier content (nudity detected). Defaulting to OnlyFans as the safest paid funnel destination.",
+          platform: fallbackId,
+          reason: fallbackReason,
           caption: fixed.primary_recommendation.caption,
           hashtags: [],
           wisdom: null,
           pricing_suggestion: null,
-          post_type: { label: "PPV unlock", description: "Premium paywalled content sold per unlock." },
+          post_type:
+            tier >= 4
+              ? { label: "PPV unlock", description: "Premium paywalled content sold per unlock in DMs." }
+              : { label: "free for subscribers", description: "Loyalty content on the paid sub feed." },
           strategy_alignment:
-            "This image goes behind a paywall. Tease the social funnel with a tier-2 (lingerie/implied) variant.",
+            "This image goes behind a paywall. Tease the social funnel with a tier-2 (lingerie/implied) variant on onlyfans_free or social.",
         };
       }
     }

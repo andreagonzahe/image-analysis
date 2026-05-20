@@ -646,15 +646,25 @@ function enforcePolicy(strategy: AnalysisResult, verdict: "nsfw" | "normal", tag
       if (paidAlt) {
         fixed.primary_recommendation = paidAlt;
       } else {
+        // Tier 3 → onlyfans_wall (paid feed loyalty content).
+        // Tier 4-5 → onlyfans_ppv (DM unlock — never on the wall).
+        const fallbackId = tier >= 4 ? "onlyfans_ppv" : "onlyfans_wall";
+        const fallbackReason =
+          tier >= 4
+            ? "Re-routed by the funnel layer: tier 4-5 explicit content. Defaulting to OnlyFans PPV — never on the wall."
+            : "Re-routed by the funnel layer: tier 3 paid content. Defaulting to OnlyFans paid wall.";
         fixed.primary_recommendation = {
-          platform: "onlyfans",
-          reason: "Re-routed by the funnel layer: paid-tier content. Defaulting to OnlyFans.",
+          platform: fallbackId,
+          reason: fallbackReason,
           caption: fixed.primary_recommendation.caption,
           hashtags: [],
           wisdom: null,
           pricing_suggestion: null,
-          post_type: { label: "PPV unlock", description: "Premium paywalled content sold per unlock." },
-          strategy_alignment: "Paid-only. Tease the funnel with a tier-2 variant.",
+          post_type:
+            tier >= 4
+              ? { label: "PPV unlock", description: "Premium paywalled content sold per unlock in DMs." }
+              : { label: "free for subscribers", description: "Loyalty content on the paid sub feed." },
+          strategy_alignment: "Paid-only. Tease the funnel with a tier-2 variant on onlyfans_free or social.",
         };
       }
     }

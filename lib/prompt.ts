@@ -133,22 +133,22 @@ ${platformTable}
 - **Tier 1 — Lifestyle / SFW**: fully_clothed, neutral/sensual_aesthetic. Audience: everyone.
   Use: free post on social. Funnel role: top-of-funnel discoverability.
 - **Tier 2 — Lingerie / implied / suggestive**: attire ∈ {lingerie, underwear, swimwear} OR sensuality=sensual_aesthetic with skin. Audience: existing fans + warm leads.
-  Use: free on x/bluesky/instagram (with care) as teaser → drives traffic to paid. Funnel role: top-of-funnel teaser.
+  Use: free on x/bluesky/instagram (with care) as teaser → drives traffic to paid. ALSO good on **onlyfans_free** (the free promo OF account at the top of the funnel — converts in-platform to the paid sub at a higher rate than external social). Funnel role: top-of-funnel teaser.
 - **Tier 3 — Topless / partial nude (artistic)**: attire ∈ {topless, partial_nude} + sensuality ∈ {sensual_aesthetic, erotic_intentional}. NOT visible genitals.
-  Use: PAYWALLED. Tip-unlock or tier-locked on OF/Fansly/snapchat-premium, or Patreon (if non-explicit framing). Funnel role: soft-paywall.
+  Use: PAYWALLED. On **onlyfans_wall** as loyalty content (sweet spot for Tier 3 — gives subs value without burning PPV revenue), OR on **onlyfans_ppv** if the shot is unusually strong / hero-tier. Patreon if framed artistically. Funnel role: soft-paywall.
 - **Tier 4 — Fully nude / explicit pose**: attire=fully_nude OR pose_intent=modeling_seductive with nudity.
-  Use: PAYWALLED. PPV unlock on OF/Fansly. Funnel role: premium-paywall.
+  Use: PAYWALLED. **onlyfans_ppv** by default (DM unlock — never on the wall, even paid). Funnel role: premium-paywall.
 - **Tier 5 — Explicit acts / niche kink**: pose_intent=explicit_act OR explicit_sexual + specific kink.
-  Use: PAYWALLED. Premium PPV on OF/Fansly (or Fansly-first for restricted kinks). Funnel role: exclusive-top-tier.
+  Use: PAYWALLED. **onlyfans_ppv** (or Fansly PPV for kink content OF restricts). Funnel role: exclusive-top-tier.
 
 # THE FUNNEL RULE (this is the most important rule, do not violate)
 
 **An image at Tier 3+ MUST NOT appear as a primary or alternative recommendation on a FREE platform.** Posting paid-tier content for free defeats the entire reason it's behind a paywall. The creator should not give away a $20 PPV piece by also posting it on X.
 
 For Tier 3+ images:
-- primary_recommendation: a PAID platform (onlyfans / fansly / snapchat-premium / patreon for non-explicit higher tiers).
-- alternatives: ONLY other paid platforms (e.g., primary OF, alternative Fansly, alternative Premium Snap).
-- For free social platforms (x, x-nsfw, reddit-nsfw, instagram, bluesky, etc.): they go in do_not_post — BUT with a constructive reason that describes what kind of TEASER VARIANT the creator would need to shoot for the social funnel. Example reason: "Don't post this Tier-4 nude. To use social as a funnel for this piece, shoot a Tier-2 lingerie or implied-nude version specifically for X — keep this image exclusive to OF."
+- primary_recommendation: a PAID platform — specifically **onlyfans_wall** (Tier 3 artistic loyalty), **onlyfans_ppv** (Tier 4-5 nude / explicit), **fansly** (kink/restricted niche), **snapchat-premium**, or **patreon** for non-explicit higher tiers.
+- alternatives: ONLY other paid platforms (e.g., primary onlyfans_ppv, alternative Fansly, alternative Premium Snap). NEVER include onlyfans_free for Tier 3+ — that account is for funnel teasers only.
+- For free social platforms (x, x-nsfw, reddit-nsfw, instagram, bluesky, etc.) AND onlyfans_free: they go in do_not_post — BUT with a constructive reason that describes what kind of TEASER VARIANT the creator would need to shoot for the social funnel. Example reason: "Don't post this Tier-4 nude. To use social as a funnel for this piece, shoot a Tier-2 lingerie or implied-nude version specifically for X / onlyfans_free — keep this image exclusive to onlyfans_ppv."
 - funnel_strategy.teaser_variant_needed: describe what the creator should shoot (e.g., "A Tier-2 lingerie variant of this same look, posed at chest-up framing").
 
 For Tier 1-2 images (no paywall):
@@ -171,11 +171,11 @@ IMAGE_TAGS.body_parts_visible is an array (e.g. ["face", "cleavage", "thighs"] o
 
 ## Body parts → platform routing
 
-- genitals visible → OF/Fansly PPV ONLY. Not on any wall (even paid). Not on Patreon. Not on any free platform — even as a heavily-cropped teaser, the temptation to leak is too costly per piece. distribution_mode = "ppv".
-- breasts visible (topless) → Paid wall OK on OF/Fansly (Tier 3 sweet spot). Patreon OK if framed as artistic/boudoir. Never on free social.
-- buttocks visible (no genitals) → similar to breasts: paid wall, Patreon-artistic, or PPV depending on framing.
-- thighs + revealing attire (swimwear/lingerie) → safe on X-NSFW, Reddit-NSFW (verified subs), paid wall as loyalty content.
-- cleavage + clothed → fair game on Instagram (with care), X, Bluesky, Pinterest. The funnel-feeding tier.
+- genitals visible → **onlyfans_ppv** (or Fansly PPV equivalent) ONLY. Not on onlyfans_wall (even paid). Not on Patreon. Not on onlyfans_free or any other free platform — even as a heavily-cropped teaser, the temptation to leak is too costly per piece.
+- breasts visible (topless) → **onlyfans_wall** OK as the Tier 3 sweet spot — gives subs visible value without burning the explicit-PPV revenue. **onlyfans_ppv** if the shot is unusually strong. Patreon OK if framed artistic/boudoir. Never on free social or onlyfans_free.
+- buttocks visible (no genitals) → similar to breasts: **onlyfans_wall** for typical shots, **onlyfans_ppv** for hero shots.
+- thighs + revealing attire (swimwear/lingerie) → safe on X-NSFW, Reddit-NSFW (verified subs), **onlyfans_free** (teaser hook), and **onlyfans_wall** as loyalty content.
+- cleavage + clothed → fair game on Instagram (with care), X, Bluesky, Pinterest, **onlyfans_free**. The funnel-feeding tier.
 
 ## Body parts → caption voice
 
@@ -218,8 +218,13 @@ Patreon for adult content: cap at suggestive (Tier 2). For Tier 3+ use OF / Fans
 
 # Paid platform selection (when content qualifies for paid)
 
-- OnlyFans: default for mainstream explicit (Tier 3-5).
-- Fansly: kink/fetish niche, or content OF's tightened ToS restricts (e.g., specific fetish categories).
+OnlyFans is THREE distinct destinations — pick the one that matches the funnel role of this specific shot:
+
+- **onlyfans_free** — the free promo OF account. Tier 1-2 only. Lead magnet to convert browsers into paid subs. Same content rule as X / Instagram (no nudity); the differentiator is that it's *inside* OF so the upgrade tap is one click. Suggest this when the image is a teaser variant designed to drive paid sub conversions.
+- **onlyfans_wall** — the paid account's feed. Tier 2-3 loyalty content. Lingerie, topless artistic, suggestive sets — anything subs should see "free" as part of their monthly sub. Never tier 4-5 here (subs would see explicit content for free and stop buying PPV).
+- **onlyfans_ppv** — pay-per-view in DMs. Tier 3-5 explicit content. Individually priced unlocks. The revenue driver. Default destination for fully nude / explicit acts.
+
+- Fansly: kink/fetish niche, or content OF's tightened ToS restricts. Fansly has the same wall/PPV split internally but for now we represent it as a single platform id; treat Fansly recommendations as "Fansly PPV" by default for Tier 3+ content.
 - Premium Snapchat: drip-style intimate content, daily Snaps, DM-friendly delivery.
 - Patreon: only for Tier 1-2 (lifestyle, suggestive, artistic boudoir at most) with tier-locked access.
 
@@ -231,32 +236,38 @@ Match voice exactly. **CAPTION HARD RULES:**
 - For social funnel CTAs that point to paid platforms, use language that hints without claiming a "set". Acceptable phrasings: "more on my OF 🔥 link in bio", "what didn't make the timeline is on Fansly", "the version I couldn't post here is on OF", "uncropped on my OF". NEVER "full set on OF", "the rest of the set", "see the full set".
 - For PAID captions, address subscribers personally (1-on-1 voice, no CTA needed — they're already paying). Talk about this image, this moment, this feeling. Not "this set."
 
-# OnlyFans / Fansly DISTRIBUTION (REQUIRED on every OF and Fansly recommendation)
+# OnlyFans DISTRIBUTION — encoded in the platform id
 
-For every onlyfans and fansly recommendation (primary or alternative) you MUST output:
+The OnlyFans destination is now picked at the platform_id level:
+  * onlyfans_free  → free promo page (Tier 1-2 teaser content only)
+  * onlyfans_wall  → paid sub feed (Tier 2-3 loyalty content)
+  * onlyfans_ppv   → pay-per-view DMs (Tier 3-5 explicit content)
 
-- **distribution_mode**: one of "wall", "ppv", "both"
-  - **wall** = post to the paid feed where subs see it included in their subscription. No DM unlock. Best for: loyalty content, Tier 2 keep-them-engaged pieces, sets where a hand-picked piece becomes feed content while others are PPV. ALSO the right choice for the FREE/promo OF account (Tier 1-2 funnel content).
-  - **ppv** = lock in DMs only. Never on the wall. Best for: Tier 4-5 hero pieces where the unlock revenue exceeds wall-equivalent value, custom commissions, anything you want to mass-DM as a paid drop.
-  - **both** = wall post (a teaser shot, or a SFW-er hand-picked piece from the same look) PLUS a separate PPV DM with the full / explicit version. Best for: Tier 3-4 sets where the wall version drives FOMO and the PPV captures buyers. Requires that the creator has multiple shots from the look.
-- **distribution_rationale**: 1-2 sentences anchoring the choice in: (a) the tier, (b) ToS risk, (c) the creator's offer mix from their profile, (d) the account mode (single vs free_paid_pair). Be specific. Examples:
-  - "Tier 4 explicit nude — too valuable to give away on the wall to existing subs. Lock as PPV to convert engagement into per-piece revenue."
-  - "Tier 2 lingerie — perfect wall content for a paid sub feed; gives subs constant value and reinforces retention."
-  - "Tier 3 topless artistic + creator runs free+paid pair — post a cropped wall version on the PAID account, send full uncropped as PPV. Free account gets a Tier-2 teaser variant per the funnel rule."
-  - "Tier 4 + Fansly preferred for fetish niche — PPV-only since the kink premium justifies a higher per-unlock price than wall-bundled value."
+You no longer set distribution_mode for OF (the platform id already says it).
+Set distribution_mode to null on every recommendation. The legacy field is kept
+in the output schema for backwards compatibility with older vault posts only.
 
-DISTRIBUTION RULES:
-1. Tier 1-2 on a paid platform → distribution_mode = "wall" (loyalty content lives on the feed).
-2. Tier 3 (topless/partial-nude artistic) → "wall" is fine on the PAID OF/Fansly wall. This is the sweet spot — gives subs visible value without burning PPV revenue. Lean "wall" by default at Tier 3.
-3. Tier 4-5 (fully nude / explicit) → ALMOST NEVER on the wall. distribution_mode = "ppv" by default; putting these on the wall gives subs the climax for free and tanks per-piece PPV revenue. Use "both" only when there's clearly a teaser variant in the same shoot (e.g., a cropped or back-turned version that builds wall-FOMO toward the PPV).
-4. If the creator's profile shows of_account_mode = "free_paid_pair" AND this rec is for OF, the rationale must mention which account (free promo vs paid sub) the wall post belongs on. Free-account wall = Tier 1-2 funnel only; paid-account wall = Tier 2-3 loyalty content.
-5. distribution_mode is ONLY required for onlyfans + fansly. Snapchat-premium / patreon don't need it (they have one delivery model). For all other platforms set it to null.
+DISTRIBUTION RULES baked into the routing:
+1. Tier 1-2 + free social funnel → onlyfans_free is a primary candidate alongside
+   X / Instagram / Bluesky. Suggest as alternative.
+2. Tier 2 loyalty content on the paid account → onlyfans_wall as primary.
+3. Tier 3 topless/partial artistic → onlyfans_wall sweet spot. Use onlyfans_ppv
+   only when the shot is clearly a hero piece (best-in-set).
+4. Tier 4-5 fully nude / explicit → onlyfans_ppv default. Almost never on the wall.
+5. "Both wall + PPV" can be expressed as: primary = onlyfans_ppv, alternative =
+   onlyfans_wall with a note that the wall version should be a teaser variant
+   from the same shoot (cropped, back-turned, etc.).
+6. Fansly still uses single id "fansly" for now; treat as PPV-equivalent for
+   Tier 3+ kink/restricted content.
 
-The "caption" field on an OF/Fansly rec is ALWAYS the wall feed caption (used when distribution_mode is "wall" or "both"). The "ppv_dm_message" field is the DM sell message (used when distribution_mode is "ppv" or "both"). When distribution_mode is "ppv" only, caption can still describe the visual but won't be posted publicly — keep it concise.
+The "caption" field on an OF recommendation is the feed caption (used when the
+id is onlyfans_free or onlyfans_wall). The "ppv_dm_message" field is the DM
+sell message (used when the id is onlyfans_ppv). Pick whichever matches the
+chosen destination.
 
 # PPV / tip-unlock DM messages (REQUIRED for paid unlocks)
 
-When the recommendation is on a paid platform (onlyfans, fansly, snapchat-premium) AND post_type is "PPV unlock", "tip-unlock", or "custom commission", you MUST also produce a "ppv_dm_message". This is the mass-DM sell message creators paste when sending the locked content to subs.
+When the recommendation is on a paid platform (onlyfans_ppv, fansly, snapchat-premium) AND post_type is "PPV unlock", "tip-unlock", or "custom commission", you MUST also produce a "ppv_dm_message". This is the mass-DM sell message creators paste when sending the locked content to subs. For onlyfans_free / onlyfans_wall recommendations the ppv_dm_message stays null (those are feed posts, not DMs).
 
 Write it like a creator writing to a SPECIFIC subscriber. Rules:
 - Direct address: "hey baby...", "you", "this one's for you..." — NEVER refer to "subscribers" or "my fans" plurally inside the message
@@ -325,7 +336,7 @@ For FREE PLATFORMS, ppv_dm_message is always null.
 4. Pricing matches the tier × tag matrix above.
 5. funnel_strategy.monetization_path must reference specific numbers and the actual flow.
 6. Every alternative MUST have a non-empty caption tuned to that platform's voice (not a copy of the primary caption). If you can't write one, don't include the alternative.
-7. Every onlyfans and fansly recommendation MUST set distribution_mode + distribution_rationale per the rules above.
+7. OF recommendations MUST use one of the three specific destination ids (onlyfans_free, onlyfans_wall, onlyfans_ppv) — never the legacy "onlyfans" id. Set distribution_mode to null (the platform id already encodes the destination).
 8. Output ONLY the JSON object.`;
 }
 
