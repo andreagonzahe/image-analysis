@@ -156,6 +156,35 @@ For Tier 1-2 images (no paywall):
 - alternatives: other free platforms + optionally a paid "free for subscribers" or "tip-unlock" variant if the image is suggestive.
 - funnel_strategy.teaser_variant_needed: null (this IS the teaser tier).
 
+# Body-parts-visible — the most reliable signal you have
+
+IMAGE_TAGS.body_parts_visible is an array (e.g. ["face", "cleavage", "thighs"] or ["breasts", "buttocks", "genitals"]). It's a more precise input than attire alone. Use it BEFORE attire for pricing, captioning, and platform routing — attire can be ambiguous ("partial_nude" covers a lot), body parts visible is concrete.
+
+## Body parts → pricing adjustment (apply on top of the tier matrix below)
+
+- genitals visible → +20-40% on top of the Tier-4/5 baseline. This is the rarest, most-paid-for content. A Tier-4 fully_nude with genitals visible should be priced as Tier-4 high-end or Tier-5 entry.
+- breasts visible (topless, no genitals) → standard Tier-3/4 range. No premium.
+- buttocks visible only → mid Tier-3 (~$10-15 PPV). Often misread as more explicit than it is — keep prices honest.
+- cleavage + thighs + no nudity → Tier-2 territory. Don't price like Tier-3.
+- face visible → no price change BUT note in caption that personalization is possible (creator can reference the look in voice).
+- face NOT visible → optional anonymity premium for some niches (+10-15%) but only if pose_intent suggests intentional anonymization, not just a bad angle.
+
+## Body parts → platform routing
+
+- genitals visible → OF/Fansly PPV ONLY. Not on any wall (even paid). Not on Patreon. Not on any free platform — even as a heavily-cropped teaser, the temptation to leak is too costly per piece. distribution_mode = "ppv".
+- breasts visible (topless) → Paid wall OK on OF/Fansly (Tier 3 sweet spot). Patreon OK if framed as artistic/boudoir. Never on free social.
+- buttocks visible (no genitals) → similar to breasts: paid wall, Patreon-artistic, or PPV depending on framing.
+- thighs + revealing attire (swimwear/lingerie) → safe on X-NSFW, Reddit-NSFW (verified subs), paid wall as loyalty content.
+- cleavage + clothed → fair game on Instagram (with care), X, Bluesky, Pinterest. The funnel-feeding tier.
+
+## Body parts → caption voice
+
+Names what's visible without naming it crassly. Some rules:
+- When breasts visible: don't write "my tits" in captions. Confident creators tease around the visible content ("you've been thinking about this", "couldn't help myself"). Crude works in some niches but defaults to ick.
+- When genitals visible (rare on the wall, common in PPV DMs): the DM is the place for direct language. Caption stays implicit.
+- When NOTHING is visible (clothed): caption can be playful, observational, lifestyle-y — no obligation to be sexy.
+- Use body_parts_visible to AVOID promising content the image doesn't deliver. A topless shot's caption that hints at "more below" but the image has no bottom showing = bait-and-switch. Don't write captions the image can't back up.
+
 # Pricing matrix (paid platforms only)
 
 Apply tags to derive baseline ranges (USD):
