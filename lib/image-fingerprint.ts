@@ -19,6 +19,7 @@ import sharp from "sharp";
 export type Fingerprint = {
   phash: bigint; // 64-bit; serialize as string when going through JSON
   blur_score: number; // Laplacian variance — empirical scale ~0..1000+
+  text_score: number; // 0..1 — flat-color uniformity, high = screenshot-like
   width: number;
   height: number;
   byte_size: number;
@@ -46,6 +47,19 @@ export type Fingerprint = {
 export const BLUR_THRESHOLD_LOOSE = 25;
 export const HAMMING_THRESHOLD = 12;
 
+// Screenshot heuristic. A screenshot has huge flat-color regions
+// (chat background, app surface, web page body) — usually 60-80% of
+// the pixels collapse into a single 16-level luminance bucket. Real
+// photos very rarely cross 45% because even a clean studio backdrop
+// has lighting gradients that spread pixels across multiple buckets.
+//
+// Setting the threshold at 0.55 to stay safely above the false-positive
+// zone for high-key creator photos (white wall studio shots). Anything
+// flagged here gets skipped FOR FREE — no Qwen-VL prefilter call, no
+// captioner, no strategist. The downstream prefilter catches the
+// borderline cases this misses.
+export const TEXT_SCORE_THRESHOLD = 0.55;
+
 /**
  * Compute pHash + blur score from raw image bytes. Returns null on
  * unrecognized formats so a bad file degrades to "we don't know" instead
@@ -64,17 +78,20 @@ export async function computeFingerprint(bytes: Buffer): Promise<Fingerprint | n
       .toBuffer();
     const phash = computePHash(hashRaster, 32);
 
-    // Compute blur score from 64×64 grayscale.
+    // Compute blur + text-likelihood scores from the same 64×64
+    // grayscale buffer (one sharp call instead of two).
     const blurRaster = await sharp(bytes)
       .grayscale()
       .resize(64, 64, { fit: "fill", kernel: "lanczos3" })
       .raw()
       .toBuffer();
     const blur_score = computeLaplacianVariance(blurRaster, 64, 64);
+    const text_score = computeTextScore(blurRaster);
 
     return {
       phash,
       blur_score,
+      text_score,
       width: meta.width,
       height: meta.height,
       byte_size: bytes.byteLength,
@@ -143,6 +160,36 @@ function computeLaplacianVariance(raw: Buffer, w: number, h: number): number {
   let variance = 0;
   for (const v of values) variance += (v - mean) * (v - mean);
   return variance / n;
+}
+
+/**
+ * Text-likelihood score in [0, 1]. Measures the fraction of pixels in
+ * the most-common 16-level luminance bucket — i.e. how "flat-color"
+ * the image is. Computed from the same 64×64 grayscale used for blur,
+ * so it's effectively free.
+ *
+ * Why this works as a text/screenshot signal:
+ *   * Chat / app / web screenshots have huge contiguous regions at one
+ *     UI background color → 60-80% of pixels share one bucket.
+ *   * Documents / receipts / spreadsheets are mostly white background
+ *     with sparse dark text → 70%+ in the top bucket.
+ *   * Real photos almost never exceed ~45% even when shot against a
+ *     plain backdrop, because natural lighting creates gradient bands
+ *     that spread pixels across multiple buckets.
+ *
+ * Pairs well with TEXT_SCORE_THRESHOLD = 0.55: catches the clear
+ * cases (chats, documents, web) and leaves the prefilter to handle
+ * ambiguous ones (mixed photo + text overlays, app screenshots with
+ * lots of imagery).
+ */
+function computeTextScore(grayRaw: Buffer): number {
+  const buckets = new Array(16).fill(0);
+  for (let i = 0; i < grayRaw.length; i++) {
+    buckets[grayRaw[i] >> 4]++; // luminance / 16 → bucket index
+  }
+  let max = 0;
+  for (const b of buckets) if (b > max) max = b;
+  return max / grayRaw.length;
 }
 
 /**

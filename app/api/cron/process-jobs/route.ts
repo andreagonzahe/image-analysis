@@ -24,6 +24,7 @@ import {
   phashToString,
   HAMMING_THRESHOLD,
   BLUR_THRESHOLD_LOOSE,
+  TEXT_SCORE_THRESHOLD,
 } from "@/lib/image-fingerprint";
 import { PLATFORMS } from "@/lib/platforms";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
@@ -270,7 +271,22 @@ async function runScreen(job: Job): Promise<void> {
 
   const phashStr = phashToString(fp.phash);
 
-  // 3. Blur check — loose threshold (BLUR_THRESHOLD_LOOSE = 25).
+  // 3a. Text/UI screenshot check. Computes a flat-color uniformity
+  //     score from the same 64×64 grayscale buffer the blur check
+  //     uses — effectively free. If 55%+ of the pixels collapse into
+  //     a single luminance bucket, the image is overwhelmingly flat
+  //     color (chat background, document, app surface, web page) and
+  //     not a real photo. Kill it here before the $0.001 Qwen-VL
+  //     prefilter call.
+  if (fp.text_score > TEXT_SCORE_THRESHOLD) {
+    await markJobSkipped(
+      job.id,
+      `flat-color uniformity ${(fp.text_score * 100).toFixed(0)}% > ${(TEXT_SCORE_THRESHOLD * 100).toFixed(0)}% — likely a text/UI screenshot: ${filename}`
+    );
+    return;
+  }
+
+  // 3b. Blur check — loose threshold (BLUR_THRESHOLD_LOOSE = 25).
   if (fp.blur_score < BLUR_THRESHOLD_LOOSE) {
     await markJobSkipped(
       job.id,
