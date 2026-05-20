@@ -21,43 +21,49 @@ export type PrefilterVerdict = {
   reason: string;
 };
 
-const PREFILTER_PROMPT = `You are a content-library curator for an adult creator. Decide whether this image is worth keeping in their content library, OR whether it's noise that should be skipped.
+const PREFILTER_PROMPT = `You are a strict content-library curator for an adult creator. Your job is to REJECT anything that isn't a real photograph of the creator. When in doubt, SKIP.
 
-# Hard rule: people-only
+# STEP 1 — is this a photograph at all, or is it a screen capture?
 
-The creator's library is for photos OF THE CREATOR. If the image does NOT contain a person, SKIP it — no matter how aesthetic, intentional, or pretty it is. Landscape, food, pet, plant, sunset, room interior, outfit-on-a-hanger, car, drink, etc. → SKIP.
+If the image shows TEXT, UI elements, app interfaces, browser windows, web pages, social feeds, chat messages, photo-app screens, settings menus, listings, receipts, documents, code, maps, weather widgets, notification banners, status bars, address bars, search bars, keyboards on screen — it's a SCREENSHOT. SKIP it.
 
-KEEP (answer "KEEP") — image MUST contain a visible person:
-- Selfies (front-camera, mirror, bathroom selfies)
-- Posed shots — professional photos, modeling, lingerie, boudoir
-- Outfit shots (full-body, clearly the creator, intentional pose)
-- Travel / lifestyle photos where the creator is IN frame
+A screenshot doesn't need text to be a screenshot. If the framing looks like a phone or computer display (rounded corners, status bar at top, app chrome) → still a screenshot. SKIP.
 
-SKIP (answer "SKIP") — anything in this list, even if it's a beautiful image:
-- Any screenshot — text conversations, app UIs, memes, browser windows, social media feeds, listings, receipts, maps, code, error pages, weather, etc. If it looks like a phone or computer screen captured to a photo, SKIP.
-- Documents, IDs, paperwork, handwritten notes
-- Photos of OTHER people that aren't the creator (friends, family, kids — privacy + brand reasons)
-- Pure scenery / landscape / sky / sunset (no person)
-- Food, drinks, table settings (no person)
-- Pets, animals on their own
-- Plants, flowers, decor, room interiors
-- Outfits / clothes laid out without a person wearing them
-- Cars, buildings, objects
-- Blurry / out-of-focus / accidentally captured
-- Stock photos, downloaded inspiration images
+# STEP 2 — is there a visible PERSON in the photograph?
 
-Output exactly:
+The creator's library is for photos OF THE CREATOR. If there is no visible human figure (body, face, hands, legs — at least one), SKIP. No exceptions. A pretty landscape, a tasteful food shot, an outfit-on-a-hanger, a flat-lay of products, a pet, a plant, a room — all SKIP, even if visually nice.
+
+If there IS a person but they're NOT the creator (friends, family at a bar, group photos, kids, strangers in the background as the main subject) → also SKIP.
+
+# WHEN TO KEEP
+
+ONLY answer "KEEP" if ALL of these are true:
+1. It's a real photograph (not a screen capture of anything)
+2. There is a visible person in frame as the SUBJECT
+3. The person is plausibly the creator (a selfie, posed shot, modeling photo, full-body outfit shot, lingerie/boudoir, swimwear, lifestyle photo where they're in frame)
+
+# WHEN TO SKIP
+
+EVERYTHING else. Be aggressive. False positives (keeping something we'd skip) cost the creator real Replicate + Together credit per photo. False negatives (skipping a real photo we should keep) just mean they re-import that folder.
+
+The cost asymmetry says: lean toward SKIP.
+
+# Output exactly
+
 <KEEP or SKIP>: <one-word category>: <12-word reason>
 
 Examples:
 KEEP: selfie: mirror selfie, posed, in lingerie, clearly creator-shot
 KEEP: modeling: full-body outdoor shot, creator posing in swimwear
-SKIP: screenshot: text-message conversation captured to photo
-SKIP: screenshot: real-estate listing on phone, no person visible
+SKIP: screenshot: text-message conversation captured from phone
+SKIP: screenshot: real-estate listing screen capture, no creator
+SKIP: screenshot: app interface with photo thumbnails, no creator
+SKIP: screenshot: photo gallery view with multiple tile previews
 SKIP: no-person: sunset landscape, beautiful but nobody in frame
 SKIP: no-person: food plate close-up, nobody visible
 SKIP: pet: cat sleeping on couch, no creator in frame
 SKIP: group-photo: bar photo with friends, not creator content
+SKIP: object: outfit laid out flat on bed, no person wearing
 
 Answer now:`;
 
@@ -145,17 +151,19 @@ function parsePrefilterOutput(raw: string): PrefilterVerdict {
       reason: match[3].trim().slice(0, 200),
     };
   }
-  // Fallback: scan for "KEEP" or "SKIP" anywhere in the output
+  // Fallback: scan for "SKIP" first (more aggressive — we'd rather drop
+  // a real photo than burn $0.01 analyzing a screenshot the model
+  // confused itself describing).
   const upper = raw.toUpperCase();
-  if (upper.includes("KEEP")) {
-    return { keep: true, category: "creator-content", reason: raw.slice(0, 200) };
-  }
   if (upper.includes("SKIP")) {
     return { keep: false, category: "other", reason: raw.slice(0, 200) };
   }
-  // Last resort: keep so we don't lose content. False positives are cheaper than
-  // false negatives in a creator library.
-  return { keep: true, category: "unknown", reason: raw.slice(0, 200) };
+  if (upper.includes("KEEP")) {
+    return { keep: true, category: "creator-content", reason: raw.slice(0, 200) };
+  }
+  // Last resort: SKIP. Garbled output is a model failure — better to lose
+  // one keeper than to spend AI credit on noise we can't classify.
+  return { keep: false, category: "unparseable", reason: raw.slice(0, 200) };
 }
 
 async function postWithBackoff(url: string, init: RequestInit, label: string): Promise<Response> {

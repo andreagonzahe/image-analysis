@@ -100,24 +100,41 @@ type SortKey =
   | "unposted_first";
 type SourceFilter = "all" | "local" | "remote" | "both";
 type StatusFilter = "all" | "not_posted" | "posted" | "skipped";
-type BodyFilter = "all" | "top" | "bottom" | "both" | "genitals" | "neither";
+type BodyFilter = "all" | "top" | "butt" | "lingerie" | "both" | "genitals" | "neither";
 
 /**
  * Derive coarse "what's showing" categories from the captioner's tags.
- * Inclusive: a post can be both top+bottom (then it's "both"). Used for
- * the BodyFilter chips so a creator can quickly browse "all my topless
- * stuff" or "things I shot with bottom focus".
+ *
+ * Categories:
+ *   - top      = breasts or cleavage visible, or topless/nude attire
+ *   - butt     = buttocks visible (any garment level — including thong)
+ *   - genitals = genitals tagged or fully_nude attire (sub-set of butt)
+ *   - lingerie = suggestive attire (lingerie/underwear/swimwear) OR a
+ *                seductive pose, WITHOUT explicit nudity tags. Catches
+ *                the "tease" tier where the captioner saw the outfit
+ *                but no specific body parts.
+ *   - neither  = none of the above (modest)
  */
 function deriveBodyCategories(post: MergedPost): {
   top: boolean;
-  bottom: boolean;
+  butt: boolean;
   genitals: boolean;
+  lingerie: boolean;
 } {
-  const tags = (post.analysis as { tags?: { attire?: string; body_parts_visible?: string[] } })?.tags;
-  if (!tags) return { top: false, bottom: false, genitals: false };
+  const tags = (post.analysis as {
+    tags?: {
+      attire?: string;
+      body_parts_visible?: string[];
+      sensuality?: string;
+      pose_intent?: string;
+    };
+  })?.tags;
+  if (!tags) return { top: false, butt: false, genitals: false, lingerie: false };
+
   const parts = new Set(tags.body_parts_visible ?? []);
   const attire = tags.attire ?? "unknown";
-  const revealing = ["swimwear", "lingerie", "underwear", "partial_nude", "fully_nude"];
+  const sensuality = tags.sensuality ?? "unknown";
+  const poseIntent = tags.pose_intent ?? "unknown";
 
   const top =
     parts.has("breasts") ||
@@ -126,20 +143,36 @@ function deriveBodyCategories(post: MergedPost): {
     attire === "partial_nude" ||
     attire === "fully_nude";
 
-  const bottom =
+  // Butt — direct tag, OR fully nude, OR revealing-attire posed shots
+  // where the back is plausibly visible (thong/lingerie/swimwear with
+  // a seductive pose typically shows butt even if captioner missed it).
+  const butt =
     parts.has("buttocks") ||
-    parts.has("genitals") ||
     attire === "fully_nude" ||
-    // Thighs only signal "bottom" with revealing attire context — thighs
-    // in a regular dress shouldn't show up under the bottom filter.
-    (parts.has("thighs") && revealing.includes(attire));
+    ((attire === "lingerie" ||
+      attire === "underwear" ||
+      attire === "swimwear" ||
+      attire === "partial_nude") &&
+      (poseIntent === "modeling_seductive" ||
+        sensuality === "erotic_intentional"));
 
-  // Explicit: genitals specifically tagged as visible. Sub-set of
-  // "bottom showing" — useful for creators sorting their library by
-  // tier-5 content vs softer "bottom" coverage like buttocks/thighs.
+  // Genitals: explicit tag or fully nude — tier-5 content.
   const genitals = parts.has("genitals") || attire === "fully_nude";
 
-  return { top, bottom, genitals };
+  // Lingerie / tease — suggestive but NOT showing breasts/butt/genitals
+  // directly. This is the "in between" tier: posed in lingerie or
+  // swimwear, sensual framing, but the explicit body parts aren't
+  // tagged. Hugely under-served by the previous top/bottom-only chips.
+  const lingerie =
+    !top && !butt && !genitals &&
+    (attire === "lingerie" ||
+      attire === "underwear" ||
+      attire === "swimwear" ||
+      sensuality === "erotic_intentional" ||
+      sensuality === "sensual_aesthetic" ||
+      poseIntent === "modeling_seductive");
+
+  return { top, butt, genitals, lingerie };
 }
 
 type AuthState = { auth_enabled: boolean; sync_enabled: boolean; signed_in: boolean };
@@ -268,12 +301,13 @@ export default function VaultPage() {
     }
     if (bodyFilter !== "all") {
       out = out.filter((p) => {
-        const { top, bottom, genitals } = deriveBodyCategories(p);
-        if (bodyFilter === "top") return top && !bottom;
-        if (bodyFilter === "bottom") return !top && bottom;
-        if (bodyFilter === "both") return top && bottom;
+        const { top, butt, genitals, lingerie } = deriveBodyCategories(p);
+        if (bodyFilter === "top") return top && !butt;
+        if (bodyFilter === "butt") return butt && !top;
+        if (bodyFilter === "both") return top && butt;
         if (bodyFilter === "genitals") return genitals;
-        if (bodyFilter === "neither") return !top && !bottom;
+        if (bodyFilter === "lingerie") return lingerie;
+        if (bodyFilter === "neither") return !top && !butt && !lingerie;
         return true;
       });
     }
@@ -517,9 +551,10 @@ export default function VaultPage() {
             </div>
             <div className="chip-row">
               <Chip active={bodyFilter === "all"} onClick={() => setBodyFilter("all")}>Anything showing</Chip>
+              <Chip active={bodyFilter === "lingerie"} onClick={() => setBodyFilter("lingerie")}>Lingerie / tease</Chip>
               <Chip active={bodyFilter === "top"} onClick={() => setBodyFilter("top")}>Top showing</Chip>
-              <Chip active={bodyFilter === "bottom"} onClick={() => setBodyFilter("bottom")}>Bottom showing</Chip>
-              <Chip active={bodyFilter === "both"} onClick={() => setBodyFilter("both")}>Both showing</Chip>
+              <Chip active={bodyFilter === "butt"} onClick={() => setBodyFilter("butt")}>Butt showing</Chip>
+              <Chip active={bodyFilter === "both"} onClick={() => setBodyFilter("both")}>Top + Butt</Chip>
               <Chip active={bodyFilter === "genitals"} onClick={() => setBodyFilter("genitals")}>Genitals visible</Chip>
               <Chip active={bodyFilter === "neither"} onClick={() => setBodyFilter("neither")}>Neither (modest)</Chip>
             </div>
@@ -728,26 +763,31 @@ function VaultCard({
 
   const isRemoteOnly = post.source === "remote";
   const body = deriveBodyCategories(post);
-  // Explicit (genitals visible) is its own badge — surfaces tier-5 content
-  // at a glance, distinct from generic "bottom showing".
+  // Priority order for the corner badge: most-explicit first so it
+  // dominates when there's ambiguity. Explicit > Top+Butt > single
+  // body part > Lingerie tease.
   const bodyLabel = body.genitals
     ? "Explicit"
-    : body.top && body.bottom
-      ? "Top + Bottom"
+    : body.top && body.butt
+      ? "Top + Butt"
       : body.top
         ? "Top"
-        : body.bottom
-          ? "Bottom"
-          : null;
+        : body.butt
+          ? "Butt"
+          : body.lingerie
+            ? "Lingerie"
+            : null;
   const bodyClass = body.genitals
     ? "body-badge body-badge-explicit"
-    : body.top && body.bottom
+    : body.top && body.butt
       ? "body-badge body-badge-both"
       : body.top
         ? "body-badge body-badge-top"
-        : body.bottom
+        : body.butt
           ? "body-badge body-badge-bottom"
-          : "";
+          : body.lingerie
+            ? "body-badge body-badge-lingerie"
+            : "";
 
   return (
     <article className="vault-card">

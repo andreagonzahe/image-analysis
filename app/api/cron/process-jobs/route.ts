@@ -407,6 +407,21 @@ async function runAnalyze(job: Job): Promise<void> {
     fetchProfile(),
   ]);
 
+  // Belt + suspenders: even if the prefilter let this through, the
+  // captioner now confirms whether there's actually a person. If
+  // people_in_frame is 0 AND no body parts were detected, this is noise
+  // the prefilter mis-classified (screenshot, scenery, food, etc.).
+  // Drop here BEFORE paying Together for a strategy on a non-photo.
+  const bodyParts = captioned.tags.body_parts_visible ?? [];
+  const peopleInFrame = captioned.tags.people_in_frame ?? 0;
+  if (peopleInFrame === 0 && bodyParts.length === 0) {
+    await markJobSkipped(
+      job.id,
+      `Captioner confirmed no person in frame — prefilter false-positive. Filename: ${String(job.input.name ?? job.id)}`
+    );
+    return;
+  }
+
   const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, job.user_id);
   const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
 
