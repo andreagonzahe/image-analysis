@@ -57,8 +57,10 @@ function StatusPage({ params }: { params: Promise<{ id: string }> }) {
     return `~${Math.round(hr * 10) / 10} hr`;
   };
   const staticRange = (remaining: number): string => {
-    const fastMin = (remaining * 1.5) / 60;
-    const slowMin = (remaining * 1.28) / 5;
+    // Matches the calibration on /import (screen + prefilter + analyze
+    // funnel, ~1.1s/image fast / ~2.5s/image slow).
+    const fastMin = (remaining * 1.1) / 60;
+    const slowMin = (remaining * 2.5) / 60;
     const fmt = (m: number) => {
       if (m < 1) return "< 1 min";
       if (m < 60) return `${Math.round(m)} min`;

@@ -457,15 +457,22 @@ function prettyBytes(n: number): string {
 }
 
 function humanizeDuration(count: number): string {
-  // Two regimes:
-  // - Fast: import status page open in dev (chain-fired cron) — limited by
-  //   Replicate response time only. ~1.5s per image effective (prefilter
-  //   ~0.6s/image @ 5-parallel + 28% keepers × ~2.4s analyze).
-  // - Slow: production with Vercel Cron every 60s, 5 jobs/tick — so
-  //   5 jobs/min total throughput → ~12s effective per image after the
-  //   28% keeper ratio is applied (count * 1.28 / 5 minutes).
-  const fastMin = (count * 1.5) / 60;
-  const slowMin = (count * 1.28) / 5;
+  // Calibrated to the 3-pass pipeline (screen → prefilter → analyze) with
+  // 8 jobs/tick + parallel NSFW+caption inside analyze. Empirical numbers
+  // from the worker:
+  //   Screen     : ~3s wall / 8 parallel = ~0.4s effective per image
+  //                ~50-70% survive (dedup + blur drop the rest)
+  //   Prefilter  : ~6s wall / 8 parallel = ~0.75s per survivor
+  //                ~28% of those survive (keep/skip from Qwen-VL)
+  //   Analyze    : ~12s wall / 8 parallel = ~1.5s per keeper
+  //
+  // Fast end assumes tab stays open + chain-fire keeps the worker busy:
+  //   per image ≈ 0.4 + 0.6×0.75 + 0.6×0.28×1.5 = ~1.1 sec
+  // Slow end assumes Vercel-style cron only firing every 60s, no
+  // chain-fire — about 3x slower per pass:
+  //   per image ≈ 0.4 + 0.6×2.2 + 0.6×0.28×4.5 = ~2.5 sec
+  const fastMin = (count * 1.1) / 60;
+  const slowMin = (count * 2.5) / 60;
   const fmt = (m: number) => {
     if (m < 1) return "< 1 min";
     if (m < 60) return `${Math.round(m)} min`;

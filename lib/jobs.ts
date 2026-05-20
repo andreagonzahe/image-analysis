@@ -96,11 +96,22 @@ export async function enqueueJobs(
   const { error } = await supabase.from("jobs").insert(rows);
   if (error) throw new Error(`Could not enqueue jobs: ${error.message}`);
   if (jobs[0]?.batch_id) {
-    // Update the batch's total count to reflect what was just enqueued
+    // INCREMENT the batch's total count — earlier this assignment OVERWROTE
+    // total_jobs which silently destroyed the count whenever a worker
+    // enqueued a single follow-up (screen→prefilter, prefilter→analyze).
+    // Read-then-write isn't atomic but the worst case is a tiny under-count
+    // on concurrent inserts, far better than clobbering to "1".
+    const batchId = jobs[0].batch_id;
+    const { data: current } = await supabase
+      .from("job_batches")
+      .select("total_jobs")
+      .eq("id", batchId)
+      .maybeSingle();
+    const newTotal = (current?.total_jobs ?? 0) + jobs.length;
     await supabase
       .from("job_batches")
-      .update({ total_jobs: jobs.length })
-      .eq("id", jobs[0].batch_id);
+      .update({ total_jobs: newTotal })
+      .eq("id", batchId);
   }
 }
 
