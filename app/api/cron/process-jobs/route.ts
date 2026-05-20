@@ -446,16 +446,67 @@ async function runAnalyze(job: Job): Promise<void> {
   ]);
 
   // Belt + suspenders: even if the prefilter let this through, the
-  // captioner now confirms whether there's actually a person. If
-  // people_in_frame is 0 AND no body parts were detected, this is noise
-  // the prefilter mis-classified (screenshot, scenery, food, etc.).
-  // Drop here BEFORE paying Together for a strategy on a non-photo.
+  // captioner now confirms whether there's actually a person worth
+  // posting. Three independent rejection signals — any one of them
+  // drops the photo BEFORE paying Together for a strategy.
   const bodyParts = captioned.tags.body_parts_visible ?? [];
   const peopleInFrame = captioned.tags.people_in_frame ?? 0;
+  const descLower = (captioned.description ?? "").toLowerCase();
+  const filename = String(job.input.name ?? job.id);
+
+  //  1. The obvious case: captioner saw nobody at all.
   if (peopleInFrame === 0 && bodyParts.length === 0) {
     await markJobSkipped(
       job.id,
-      `Captioner confirmed no person in frame — prefilter false-positive. Filename: ${String(job.input.name ?? job.id)}`
+      `Captioner confirmed no person in frame — prefilter false-positive. Filename: ${filename}`
+    );
+    return;
+  }
+
+  //  2. Animal / non-human dominance check. The captioner often
+  //     mis-counts "people_in_frame" on pet photos (sees a paw or
+  //     silhouette as a human). If the description prominently
+  //     mentions an animal AND no specific human body parts were
+  //     tagged, we treat it as pet content and skip.
+  //
+  //     Note: only matches when the keyword appears as the SUBJECT
+  //     of the description (early in the text) — avoids false skips
+  //     on "creator in lingerie holding her cat" where the cat is
+  //     incidental. The first ~80 chars of a Qwen-VL caption almost
+  //     always describes the primary subject.
+  const ANIMAL_SUBJECT_KEYWORDS = [
+    " dog", " puppy", " cat ", " kitten", " cats ",
+    " horse", " pony", " cow ", " sheep", " goat",
+    " pig ", " piglet", " bird ", " parrot", " chicken",
+    " duck", " rabbit", " bunny", " hamster", " ferret",
+    " snake", " lizard", " turtle", " tortoise", " fish ",
+    " dolphin", " butterfly", " spider", " insect",
+    " plushie", " stuffed animal", " teddy bear", " soft toy",
+    " figurine", " statue ", " action figure", " doll ",
+  ];
+  const subjectChunk = " " + descLower.slice(0, 80) + " ";
+  const animalHit = ANIMAL_SUBJECT_KEYWORDS.find((k) => subjectChunk.includes(k));
+  if (animalHit && bodyParts.length === 0) {
+    await markJobSkipped(
+      job.id,
+      `Captioner subject is non-human ("${animalHit.trim()}") and no body parts visible. Filename: ${filename}`
+    );
+    return;
+  }
+
+  //  3. Ambiguous-scene check. The captioner reports scene as
+  //     "other"/"unknown" for non-photographic content (drawings,
+  //     UI screenshots that slipped through, art). Combine with
+  //     "no body parts" to drop these even if Qwen claimed a person.
+  const scene = captioned.tags.scene ?? "unknown";
+  if (
+    (scene === "other" || scene === "unknown") &&
+    bodyParts.length === 0 &&
+    peopleInFrame <= 1
+  ) {
+    await markJobSkipped(
+      job.id,
+      `Captioner returned ambiguous scene + no body parts — likely non-photo content. Filename: ${filename}`
     );
     return;
   }

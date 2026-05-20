@@ -29,9 +29,24 @@ If the image shows TEXT, UI elements, app interfaces, browser windows, web pages
 
 A screenshot doesn't need text to be a screenshot. If the framing looks like a phone or computer display (rounded corners, status bar at top, app chrome) → still a screenshot. SKIP.
 
-# STEP 2 — is there a visible PERSON in the photograph?
+# STEP 2 — is the DOMINANT SUBJECT a non-human (animal, plant, object, food, scenery)?
 
-The creator's library is for photos OF THE CREATOR. If there is no visible human figure (body, face, hands, legs — at least one), SKIP. No exceptions. A pretty landscape, a tasteful food shot, an outfit-on-a-hanger, a flat-lay of products, a pet, a plant, a room — all SKIP, even if visually nice.
+This is the most common leak. Reject EVERY image whose main subject is:
+- An animal of any kind: dog, cat, puppy, kitten, horse, cow, sheep, goat, pig, bird, parrot, chicken, duck, rabbit, hamster, guinea pig, ferret, snake, lizard, turtle, fish, dolphin, butterfly, insect, spider, wildlife
+- A pet specifically (even if the creator's own pet — this is not OnlyFans material)
+- A plushie, stuffed animal, soft toy, figurine, statue, sculpture, action figure, doll
+- Food, drinks, plates, beverages, coffee art, dessert close-ups, cocktails, meal prep
+- Scenery, landscape, beach (empty), sunset, mountains, ocean, clouds, sky photos
+- Buildings, architecture, room interiors with no person, gym equipment alone, hotel lobby
+- Cars, vehicles, gadgets, products, packaging, shopping hauls laid flat
+- Flowers, plants, gardens, fruit, bouquets
+- Art, paintings, drawings, posters, tattoos on hands held up alone
+
+If an animal/object/scene is the main visual focus of the frame, SKIP — even if a human hand, foot, or shoulder is incidentally visible holding it or standing nearby. The creator's body parts must be the SUBJECT, not the bystander.
+
+# STEP 3 — is there a visible PERSON as the SUBJECT?
+
+The creator's library is for photos OF THE CREATOR. If there is no visible human figure (face, torso, legs, butt, breasts, full body — not just a fingertip or shadow), SKIP.
 
 If there IS a person but they're NOT the creator (friends, family at a bar, group photos, kids, strangers in the background as the main subject) → also SKIP.
 
@@ -39,14 +54,12 @@ If there IS a person but they're NOT the creator (friends, family at a bar, grou
 
 ONLY answer "KEEP" if ALL of these are true:
 1. It's a real photograph (not a screen capture of anything)
-2. There is a visible person in frame as the SUBJECT
-3. The person is plausibly the creator (a selfie, posed shot, modeling photo, full-body outfit shot, lingerie/boudoir, swimwear, lifestyle photo where they're in frame)
+2. The dominant subject is a HUMAN body — not an animal, object, scene, food, or plushie
+3. The human appears to be the creator (a selfie, posed shot, modeling photo, full-body outfit shot, lingerie/boudoir, swimwear, lifestyle photo where they're clearly the focus)
 
 # WHEN TO SKIP
 
-EVERYTHING else. Be aggressive. False positives (keeping something we'd skip) cost the creator real Replicate + Together credit per photo. False negatives (skipping a real photo we should keep) just mean they re-import that folder.
-
-The cost asymmetry says: lean toward SKIP.
+EVERYTHING else. Be aggressive. False positives (keeping noise) cost the creator real Replicate + Together credit per photo. False negatives just mean they re-import that folder. The cost asymmetry says: lean toward SKIP.
 
 # Output exactly
 
@@ -57,13 +70,19 @@ KEEP: selfie: mirror selfie, posed, in lingerie, clearly creator-shot
 KEEP: modeling: full-body outdoor shot, creator posing in swimwear
 SKIP: screenshot: text-message conversation captured from phone
 SKIP: screenshot: real-estate listing screen capture, no creator
-SKIP: screenshot: app interface with photo thumbnails, no creator
 SKIP: screenshot: photo gallery view with multiple tile previews
+SKIP: animal: dog sitting on couch, no human subject
+SKIP: animal: close-up of cat face, no person in frame
+SKIP: animal: puppy in lap, dog is the main subject not human
+SKIP: animal: bird on windowsill, scenic shot of pet
+SKIP: animal: aquarium fish, decorative shot
+SKIP: plushie: teddy bear arranged on bed, no person
 SKIP: no-person: sunset landscape, beautiful but nobody in frame
-SKIP: no-person: food plate close-up, nobody visible
-SKIP: pet: cat sleeping on couch, no creator in frame
-SKIP: group-photo: bar photo with friends, not creator content
+SKIP: food: food plate close-up, nobody visible
 SKIP: object: outfit laid out flat on bed, no person wearing
+SKIP: scenery: hotel room interior, empty bed shot, no model
+SKIP: product: makeup haul flat-lay, no creator visible
+SKIP: group-photo: bar photo with friends, not creator content
 
 Answer now:`;
 

@@ -51,12 +51,24 @@ export async function GET() {
   // Matches keywords in the captioner's raw_description + image_summary
   // against known screenshot/UI signals. Cheap, no thumbnail fetches needed.
   const screenshots: Array<{ id: string; reason: string; platform: string }> = [];
+  const nonhumans: Array<{ id: string; reason: string; platform: string }> = [];
   for (const p of posts) {
-    const reason = detectScreenshot(p.analysis);
-    if (reason) {
+    const ssReason = detectScreenshot(p.analysis);
+    if (ssReason) {
       screenshots.push({
         id: p.id as string,
-        reason,
+        reason: ssReason,
+        platform: p.primary_platform as string,
+      });
+      continue;
+    }
+    // Only check for non-human content if the post wasn't already
+    // flagged as a screenshot — they're mutually exclusive flag buckets.
+    const nhReason = detectNonHuman(p.analysis);
+    if (nhReason) {
+      nonhumans.push({
+        id: p.id as string,
+        reason: nhReason,
         platform: p.primary_platform as string,
       });
     }
@@ -64,13 +76,16 @@ export async function GET() {
 
   // ───── 2. Duplicate detection ─────
   // Compute pHash from the 256×256 Dropbox thumbnail for every dropbox-
-  // source post. Skip non-Dropbox + already-flagged screenshots.
-  const screenshotIds = new Set(screenshots.map((s) => s.id));
+  // source post. Skip non-Dropbox + anything already flagged for removal.
+  const flaggedIds = new Set([
+    ...screenshots.map((s) => s.id),
+    ...nonhumans.map((n) => n.id),
+  ]);
   const dropboxPosts = posts.filter(
     (p) =>
       p.image_source === "dropbox" &&
       p.image_external_id &&
-      !screenshotIds.has(p.id as string)
+      !flaggedIds.has(p.id as string)
   );
 
   const conn = await getConnectionForUser(userId);
@@ -188,9 +203,12 @@ export async function GET() {
     total_scanned: posts.length,
     screenshots,
     screenshot_count: screenshots.length,
+    nonhumans,
+    nonhuman_count: nonhumans.length,
     duplicate_clusters: duplicateClusters,
     duplicate_remove_count: totalDuplicateRemovals,
-    suggested_delete_count: screenshots.length + totalDuplicateRemovals,
+    suggested_delete_count:
+      screenshots.length + nonhumans.length + totalDuplicateRemovals,
   });
 }
 
@@ -258,6 +276,63 @@ const SCREENSHOT_KEYWORDS = [
   "error message on screen",
   "error dialog",
 ];
+
+// Animal / non-human subjects the captioner names in its description.
+// Matched only against the first ~80 chars (subject region) so a "creator
+// in lingerie holding her cat" doesn't false-positive on "cat."
+const NONHUMAN_SUBJECT_KEYWORDS = [
+  " dog", " puppy", " cat ", " kitten", " cats ", " kittens",
+  " horse", " pony", " cow ", " sheep", " goat",
+  " pig ", " piglet", " bird ", " parrot", " chicken",
+  " duck", " rabbit", " bunny", " hamster", " ferret",
+  " snake", " lizard", " turtle", " tortoise", " fish ",
+  " dolphin", " butterfly", " spider", " insect", " wildlife",
+  " plushie", " stuffed animal", " teddy bear", " soft toy",
+  " figurine", " statue ", " action figure", " doll ",
+  // Decorative / scenic subjects that aren't a person.
+  " sunset", " mountain", " landscape", " beach view",
+  " flower", " bouquet", " plant ", " plate of", " bowl of",
+  " food ", " meal ", " coffee ", " cocktail", " dessert",
+  " car ", " vehicle ", " gadget", " product photo",
+  " hotel room", " empty bed", " interior shot",
+];
+
+/**
+ * Look for non-human dominant subjects: animals, plushies, food,
+ * scenery, products. Returns the matched keyword on hit, null on
+ * KEEP. Mirrors the new STEP 2 in the prefilter prompt so retroactive
+ * cleanup catches the same things the new prefilter would have rejected.
+ */
+function detectNonHuman(analysis: unknown): string | null {
+  if (!analysis || typeof analysis !== "object") return null;
+  const a = analysis as Record<string, unknown>;
+  const desc =
+    (typeof a.raw_description === "string" ? a.raw_description : "") +
+    " " +
+    (typeof a.image_summary === "string" ? a.image_summary : "");
+  // Match only inside the "subject region" — first 80 chars where
+  // the captioner almost always describes the primary subject.
+  const subjectChunk = " " + desc.toLowerCase().slice(0, 80) + " ";
+
+  // Pull the body-parts-visible list from the analysis tags. If the
+  // captioner saw real human body parts, the photo IS of a person —
+  // even if it mentions a pet, that pet is incidental. Don't flag.
+  const tags =
+    a.tags && typeof a.tags === "object"
+      ? (a.tags as Record<string, unknown>)
+      : null;
+  const bodyParts = Array.isArray(tags?.body_parts_visible)
+    ? (tags!.body_parts_visible as unknown[])
+    : [];
+  if (bodyParts.length > 0) return null;
+
+  for (const k of NONHUMAN_SUBJECT_KEYWORDS) {
+    if (subjectChunk.includes(k)) {
+      return `non-human subject: "${k.trim()}"`;
+    }
+  }
+  return null;
+}
 
 function detectScreenshot(analysis: unknown): string | null {
   if (!analysis || typeof analysis !== "object") return null;

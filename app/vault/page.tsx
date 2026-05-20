@@ -234,9 +234,11 @@ export default function VaultPage() {
   const [junkScan, setJunkScan] = useState<{
     total_scanned: number;
     screenshot_count: number;
+    nonhuman_count: number;
     duplicate_remove_count: number;
     suggested_delete_count: number;
     screenshots: Array<{ id: string }>;
+    nonhumans: Array<{ id: string }>;
     duplicate_clusters: Array<{ keep_id: string; remove_ids: string[] }>;
   } | null>(null);
   const [junkRunning, setJunkRunning] = useState(false);
@@ -261,6 +263,7 @@ export default function VaultPage() {
     if (!junkScan) return;
     const toDelete = [
       ...junkScan.screenshots.map((s) => s.id),
+      ...junkScan.nonhumans.map((n) => n.id),
       ...junkScan.duplicate_clusters.flatMap((c) => c.remove_ids),
     ];
     if (toDelete.length === 0) return;
@@ -865,18 +868,20 @@ export default function VaultPage() {
             <>
               <section className="vault-cleanup-zone">
                 <div>
-                  <h3 className="vault-cleanup-title">Find screenshots + duplicates</h3>
+                  <h3 className="vault-cleanup-title">Find screenshots, non-humans + duplicates</h3>
                   <p className="vault-cleanup-body">
-                    Catches what the prefilter missed — screenshots of apps / listings / chats that
-                    got through, plus near-duplicate burst shots that landed as separate vault
-                    entries. Detects screenshots by reading the captioner&rsquo;s description for
-                    UI keywords; detects duplicates by perceptual-hashing the Dropbox thumbnail
-                    of each post.
+                    Catches what the prefilter missed — screenshots of apps / listings / chats,
+                    animal &amp; non-human content (pets, food, scenery, plushies) where the
+                    captioner&rsquo;s subject isn&rsquo;t a person, plus near-duplicate burst
+                    shots that landed as separate vault entries. Screenshots + non-humans
+                    detected from saved captions; duplicates detected by perceptual-hashing
+                    the Dropbox thumbnail.
                   </p>
                   {junkScan && (
                     <p className="vault-cleanup-body" style={{ marginTop: 8 }}>
                       <strong>Scanned {junkScan.total_scanned.toLocaleString()} post{junkScan.total_scanned === 1 ? "" : "s"}:</strong>{" "}
                       {junkScan.screenshot_count} screenshot{junkScan.screenshot_count === 1 ? "" : "s"} ·{" "}
+                      {junkScan.nonhuman_count} non-human{junkScan.nonhuman_count === 1 ? "" : "s"} ·{" "}
                       {junkScan.duplicate_remove_count} duplicate{junkScan.duplicate_remove_count === 1 ? "" : "s"}{" "}
                       ({junkScan.duplicate_clusters.length} cluster{junkScan.duplicate_clusters.length === 1 ? "" : "s"}).{" "}
                       <strong>Total to remove: {junkScan.suggested_delete_count}.</strong>
@@ -889,7 +894,7 @@ export default function VaultPage() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {!junkScan ? (
                     <button className="btn btn-secondary" onClick={scanJunk} disabled={junkRunning}>
-                      {junkRunning ? "Scanning…" : "Scan for screenshots + duplicates"}
+                      {junkRunning ? "Scanning…" : "Scan for junk + duplicates"}
                     </button>
                   ) : junkScan.suggested_delete_count > 0 ? (
                     <>
