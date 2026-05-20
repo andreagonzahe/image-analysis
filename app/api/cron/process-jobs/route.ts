@@ -15,6 +15,7 @@ import { classifyNsfw } from "@/lib/nsfw";
 import { captionImage } from "@/lib/captioner";
 import { decideStrategy } from "@/lib/strategist";
 import { fetchProfile } from "@/lib/profile-server";
+import { clampPriceToProfile } from "@/lib/profile";
 import { prepImageForReplicate } from "@/lib/image-prep-server";
 import { sweepReplicateDeletions } from "@/lib/replicate-cleanup";
 import {
@@ -529,6 +530,14 @@ async function runAnalyze(job: Job): Promise<void> {
 
   const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, job.user_id);
   const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
+
+  // Belt-and-suspenders: clamp the suggested price + price band to the
+  // user's stated min/max bounds. This protects against the model
+  // ignoring its routing-rules instructions on a long-tail edge case.
+  clampPriceToProfile(enforced.primary_recommendation, profile);
+  for (const alt of enforced.alternatives) {
+    clampPriceToProfile(alt, profile);
+  }
 
   // Persist to vault. For Dropbox-sourced items we record the external id
   // instead of duplicating bytes into Supabase Storage.

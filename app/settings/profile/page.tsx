@@ -124,6 +124,7 @@ export default function ProfileSettingsPage() {
           <button className="btn btn-primary" onClick={() => setEditing(true)}>
             {isEmpty ? "Set up profile" : "Edit profile"}
           </button>
+          <Link href="/settings/preferences" className="btn btn-secondary">Posting rules &amp; pricing</Link>
           <Link href="/" className="btn btn-secondary">Back to analyzer</Link>
         </div>
       </header>

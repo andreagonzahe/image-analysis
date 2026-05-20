@@ -1,9 +1,50 @@
 import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase-server";
-import type { CreatorProfile } from "@/lib/profile";
+import type { CreatorProfile, BodyCategoryId, RoutingRules } from "@/lib/profile";
+import { PLATFORM_IDS } from "@/lib/platforms";
 
 export const runtime = "nodejs";
+
+const BODY_CATEGORY_IDS: BodyCategoryId[] = [
+  "tease", "boobs", "booty", "pussy", "full_nude", "modest",
+];
+
+/**
+ * Pin routing-rule destinations to known platform ids. Anything weird
+ * (unknown id, wrong type) gets dropped silently so a typo in the
+ * incoming JSON doesn't leak garbage into the strategist prompt.
+ */
+function sanitizeRoutingRules(rules: unknown): RoutingRules {
+  if (!rules || typeof rules !== "object") return {};
+  const r = rules as Record<string, unknown>;
+  const platforms = new Set(PLATFORM_IDS);
+  const body_routing: Partial<Record<BodyCategoryId, string | null>> = {};
+  const inputBody = r.body_routing && typeof r.body_routing === "object"
+    ? (r.body_routing as Record<string, unknown>)
+    : {};
+  for (const cat of BODY_CATEGORY_IDS) {
+    const dest = inputBody[cat];
+    if (typeof dest === "string" && dest.length > 0 && platforms.has(dest)) {
+      body_routing[cat] = dest;
+    } else if (dest === null) {
+      body_routing[cat] = null;
+    }
+  }
+  const videoRaw = r.video_destination;
+  const video_destination =
+    typeof videoRaw === "string" && videoRaw.length > 0 && platforms.has(videoRaw)
+      ? videoRaw
+      : null;
+  return { body_routing, video_destination };
+}
+
+function sanitizePriceUsd(value: unknown): number | null {
+  if (typeof value !== "number" || !isFinite(value)) return null;
+  const n = Math.round(value);
+  if (n < 0 || n > 1000) return null;
+  return n;
+}
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
@@ -43,6 +84,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // Sanitize routing_rules and price bounds.
+  const sanitizedRouting = sanitizeRoutingRules(body.routing_rules);
+  const priceFloor = sanitizePriceUsd(body.price_floor_usd);
+  const priceCeiling = sanitizePriceUsd(body.price_ceiling_usd);
+
   const row: Record<string, unknown> = {
     user_id: userId,
     niche: body.niche ?? null,
@@ -65,6 +111,9 @@ export async function POST(req: Request) {
       body.fansly_account_mode === "single" || body.fansly_account_mode === "free_paid_pair"
         ? body.fansly_account_mode
         : null,
+    routing_rules: sanitizedRouting,
+    price_floor_usd: priceFloor,
+    price_ceiling_usd: priceCeiling,
     updated_at: new Date().toISOString(),
   };
   if (body.survey_dismissed_at !== undefined) {

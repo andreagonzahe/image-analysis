@@ -5,6 +5,7 @@ import { decideStrategy } from "@/lib/strategist";
 import { PLATFORMS } from "@/lib/platforms";
 import type { AnalysisResult, ContentTier } from "@/lib/prompt";
 import { fetchProfile } from "@/lib/profile-server";
+import { clampPriceToProfile } from "@/lib/profile";
 import { requireUserId, isAuthEnabled } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -46,6 +47,13 @@ export async function POST(req: Request) {
     const strategy = await decideStrategy(captioned.description, nsfw.verdict, captioned.tags, profile, userId);
 
     const enforced = enforcePolicy(strategy, nsfw.verdict, captioned.tags);
+
+    // Belt-and-suspenders: clamp prices to the user's stated bounds in
+    // case the strategist didn't honor its routing-rules instruction.
+    clampPriceToProfile(enforced.primary_recommendation, profile);
+    for (const alt of enforced.alternatives) {
+      clampPriceToProfile(alt, profile);
+    }
 
     return NextResponse.json({
       ...enforced,

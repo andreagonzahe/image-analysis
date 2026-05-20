@@ -1,3 +1,25 @@
+// Mutually-exclusive body categories the strategist routes against.
+// Mirrors the same keys used by deriveBodyCategories in the vault UI so
+// the user's routing rules apply 1:1 to what they see in their vault.
+export type BodyCategoryId =
+  | "tease"
+  | "boobs"
+  | "booty"
+  | "pussy"
+  | "full_nude"
+  | "modest";
+
+// Creator's explicit override of where each body category should go.
+// Strategist treats these as HARD RULES — overrides the default tier
+// ladder. null/missing means "no opinion, let the strategist decide."
+export type RoutingRules = {
+  body_routing?: Partial<Record<BodyCategoryId, string | null>>;
+  // Force videos to a specific destination regardless of body category.
+  // Videos almost always belong on the PPV tier because they're the
+  // highest-effort, highest-perceived-value content type.
+  video_destination?: string | null;
+};
+
 export type CreatorProfile = {
   user_id?: string;
   niche?: string | null;
@@ -19,9 +41,28 @@ export type CreatorProfile = {
   // daily slot calendar correctly.
   of_account_mode?: "single" | "free_paid_pair" | null;
   fansly_account_mode?: "single" | "free_paid_pair" | null;
+  // Explicit routing + pricing preferences. When set, override the
+  // strategist's defaults. See RoutingRules type above.
+  routing_rules?: RoutingRules | null;
+  price_floor_usd?: number | null;
+  price_ceiling_usd?: number | null;
   created_at?: string;
   updated_at?: string;
 };
+
+// Display metadata for each body category in the preferences UI.
+export const BODY_CATEGORY_DEFS: Array<{
+  id: BodyCategoryId;
+  label: string;
+  description: string;
+}> = [
+  { id: "tease", label: "Tease (lingerie / swimwear)", description: "Suggestive but no explicit nudity." },
+  { id: "boobs", label: "Boobs", description: "Breasts visible or topless." },
+  { id: "booty", label: "Booty", description: "Butt visible — including thong shots." },
+  { id: "pussy", label: "Pussy", description: "Genitals visible, not fully nude." },
+  { id: "full_nude", label: "Full nude", description: "Fully naked — most explicit photo tier." },
+  { id: "modest", label: "Modest / fully clothed", description: "Lifestyle, fitness, fully-clothed selfies." },
+];
 
 export const ACCOUNT_MODE_OPTIONS = [
   { id: "single", label: "Just one account" },
@@ -210,9 +251,77 @@ export function profileSummaryForPrompt(p: CreatorProfile | null | undefined): s
       "- runs a TWO-account Fansly setup (free promo + paid). Same distribution logic as the OF pair."
     );
   }
+
+  // Explicit routing rules — the creator has personally decided where
+  // each body category should go. Override the strategist's default
+  // tier ladder when these are set.
+  const routing = p!.routing_rules?.body_routing ?? {};
+  const routingEntries = (Object.entries(routing) as Array<[BodyCategoryId, string | null]>)
+    .filter(([, dest]) => dest && dest.trim().length > 0);
+  if (routingEntries.length > 0 || p!.routing_rules?.video_destination) {
+    lines.push(
+      "",
+      "CREATOR'S HARD ROUTING RULES (override your default tier ladder — these are the user's stated preferences, follow them exactly):"
+    );
+    for (const [cat, dest] of routingEntries) {
+      const def = BODY_CATEGORY_DEFS.find((d) => d.id === cat);
+      lines.push(`  * ${def?.label ?? cat} → primary_recommendation.platform = "${dest}"`);
+    }
+    if (p!.routing_rules?.video_destination) {
+      lines.push(`  * Videos (any tier) → primary_recommendation.platform = "${p!.routing_rules.video_destination}"`);
+    }
+    lines.push("  These rules trump tier defaults. Only deviate if the rule would put explicit content on a NO-NUDITY platform (in which case keep the rule's tier intent but switch to the safest equivalent on that platform).");
+  }
+
+  // Price bounds — clamp PPV suggestions to the creator's preferred range.
+  if (p!.price_floor_usd != null || p!.price_ceiling_usd != null) {
+    const floor = p!.price_floor_usd ?? null;
+    const ceiling = p!.price_ceiling_usd ?? null;
+    lines.push(
+      "",
+      "CREATOR'S PRICING BOUNDS (clamp every paid suggested_price to this range; clamp the low_usd/high_usd band edges too):"
+    );
+    if (floor != null) lines.push(`  * Minimum price: $${floor} (never suggest below this)`);
+    if (ceiling != null) lines.push(`  * Maximum price: $${ceiling} (never suggest above this)`);
+    if (floor != null && ceiling != null) {
+      lines.push(`  * Pick a price within [$${floor}, $${ceiling}] for every PPV / tip-unlock recommendation.`);
+    }
+  }
+
   lines.push(
     "",
-    "Adjust caption voice and recommendation priority to match this profile. The persona, tones, boundaries, and offer mix are non-negotiable — captions must sound like THIS creator, and recommendations must respect what they actually do and sell."
+    "Adjust caption voice and recommendation priority to match this profile. The persona, tones, boundaries, offer mix, AND the routing/pricing rules above are non-negotiable — captions must sound like THIS creator, recommendations must respect what they actually do and sell, and every paid price must fall within their stated bounds."
   );
   return lines.join("\n");
+}
+
+/**
+ * Belt-and-suspenders price clamp. Applied AFTER the strategist returns
+ * its recommendation — guarantees the persisted prices honor the user's
+ * stated bounds even if the model didn't follow its instructions.
+ *
+ * Mutates the recommendation in place. Returns true if anything was
+ * clamped (for logging / debugging).
+ */
+export function clampPriceToProfile(
+  rec: { pricing_suggestion?: { suggested_price?: number | null; low_usd?: number | null; high_usd?: number | null } | null },
+  profile: CreatorProfile | null | undefined
+): boolean {
+  const floor = profile?.price_floor_usd ?? null;
+  const ceiling = profile?.price_ceiling_usd ?? null;
+  if (floor == null && ceiling == null) return false;
+  const ps = rec?.pricing_suggestion;
+  if (!ps) return false;
+  let changed = false;
+  const clamp = (n: number | null | undefined): number | null | undefined => {
+    if (n == null || !isFinite(n) || n < 0) return n;
+    let out = n;
+    if (floor != null && out < floor) { out = floor; changed = true; }
+    if (ceiling != null && out > ceiling) { out = ceiling; changed = true; }
+    return out;
+  };
+  ps.suggested_price = clamp(ps.suggested_price) ?? null;
+  ps.low_usd = clamp(ps.low_usd) ?? null;
+  ps.high_usd = clamp(ps.high_usd) ?? null;
+  return changed;
 }
